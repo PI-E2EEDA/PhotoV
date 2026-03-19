@@ -11,3 +11,13 @@ services:
       dockerfile: "../frontend/deploy/Dockerfile"
       network: host
     image: frontend
+
+  # See docs on https://hub.docker.com/_/postgres
+  db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: "${DB_PWD}"
+    volumes:
+      - ./data/pgdata:/var/lib/postgresql/18/docker
