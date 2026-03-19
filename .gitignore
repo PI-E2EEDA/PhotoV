@@ -1,3 +1,4 @@
 node_modules
 infra/data
 __pycache__
+.env
