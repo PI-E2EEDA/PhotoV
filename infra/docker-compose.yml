@@ -1,7 +1,7 @@
 services:
   proxy:
     build: ../proxy/
-    image: proxy
+    image: photov/proxy
     ports:
       - "80:80"
       - "443:443"
@@ -10,7 +10,13 @@ services:
       context: ../frontend
       dockerfile: "../frontend/deploy/Dockerfile"
       network: host
-    image: frontend
+    image: photov/frontend
+
+  api:
+    build:
+      context: ../backend
+      network: host
+    image: photov/backend
 
   # See docs on https://hub.docker.com/_/postgres
   db:
