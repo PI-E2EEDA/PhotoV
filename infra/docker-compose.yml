@@ -1,0 +1,13 @@
+services:
+  proxy:
+    build: ../proxy/
+    image: proxy
+    ports:
+      - "80:80"
+      - "443:443"
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: "../frontend/deploy/Dockerfile"
+      network: host
+    image: frontend

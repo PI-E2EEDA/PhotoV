@@ -1,0 +1,15 @@
+# This is the Caddy config for a simple SPA
+# We force to not care about HTTPS and listen on 80 because HTTPs is managed by the reverse proxy
+
+{
+   # See more in https://caddyserver.com/docs/json/apps/http/servers/automatic_https/
+   auto_https off
+}
+
+:80
+
+# Try to find a file in root folder or fallback to index.html
+# This is important as routes are managed as client side
+try_files {path} /index.html
+
+file_server
