@@ -8,7 +8,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 from app.db import get_database_url
-from app.models import EnergyMeasure, PowerMeasure, Building
+from app.models import Installation, Measure
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

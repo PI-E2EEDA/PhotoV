@@ -1,29 +1,33 @@
 from datetime import datetime
 from sqlmodel import Field, SQLModel
+from sqlalchemy import UniqueConstraint
+from enum import Enum
 
 
-class Building(SQLModel, table=True):
+# Any solar installation
+class Installation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
+    location: str
     latitude: float
     longitude: float
 
 
+class MeasureType(Enum):
+    POWER = 1
+    ENERGY = 1
+
+
+# A measure of power or energy
 # All power measures are in Watt
-class PowerMeasure(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    time: datetime
-    solar_power_consumption: float
-    solar_power_production: float
-    grid_power_consumption: float
-    building_id: int | None = Field(default=None, foreign_key="building.id")
-
-
 # All energy measures are in Watt·hours
-class EnergyMeasure(SQLModel, table=True):
+class Measure(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    type: MeasureType
     time: datetime
-    solar_energy_consumption: float
-    solar_energy_production: int
-    grid_energy_consumption: float
-    building_id: int | None = Field(default=None, foreign_key="building.id")
+    installation_id: int | None = Field(default=None, foreign_key="installation.id")
+    solar_consumption: float
+    solar_production: float
+    grid_consumption: float
+    # make sure the combination of these 3 fields is unique !
+    __table_args__ = (UniqueConstraint("type", "time", "installation_id"),)
