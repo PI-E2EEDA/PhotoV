@@ -1,0 +1,3 @@
+# Only take new versions released at least 2 days ago
+# https://pnpm.io/settings#minimumreleaseage
+minimumReleaseAge: 2880
