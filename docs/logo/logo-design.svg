@@ -28,9 +28,9 @@
      inkscape:deskcolor="#dfdfdf"
      inkscape:document-units="mm"
      borderlayer="true"
-     inkscape:zoom="1.7675533"
-     inkscape:cx="343.97832"
-     inkscape:cy="500.40925"
+     inkscape:zoom="0.93876843"
+     inkscape:cx="209.84941"
+     inkscape:cy="803.71258"
      inkscape:window-width="1920"
      inkscape:window-height="1052"
      inkscape:window-x="0"
@@ -39,6 +39,18 @@
      inkscape:current-layer="layer2" />
   <defs
      id="defs1">
+    <linearGradient
+       id="linearGradient4"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#008df3;stop-opacity:1;"
+         offset="0"
+         id="stop5" />
+      <stop
+         style="stop-color:#0019ea;stop-opacity:1;"
+         offset="1"
+         id="stop6" />
+    </linearGradient>
     <linearGradient
        id="linearGradient1"
        inkscape:collect="always">
@@ -68,6 +80,16 @@
        x2="162.35068"
        y2="121.60852"
        gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient4"
+       id="linearGradient6"
+       x1="69.051018"
+       y1="236.09883"
+       x2="119.05102"
+       y2="236.09883"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(6.2004996,-35.511953)" />
   </defs>
   <g
      inkscape:label="Layer 1"
@@ -88,5 +110,15 @@
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:35.27780066px;font-family:'Cascadia Mono PL';-inkscape-font-specification:'Cascadia Mono PL, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#linearGradient2);fill-opacity:1;stroke-width:0.316"
          x="47.803738"
          y="134.46729">PhotoV</tspan></text>
+    <rect
+       style="fill:url(#linearGradient6);stroke-width:4;stroke-linejoin:round"
+       id="rect3"
+       width="50"
+       height="50"
+       x="75.251518"
+       y="175.58688"
+       inkscape:export-filename="favicon.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
   </g>
 </svg>
