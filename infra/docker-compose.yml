@@ -2,11 +2,16 @@ services:
   proxy:
     build: ../proxy/
     image: photov/proxy
+    environment:
+      DOMAIN: ${DOMAIN}
+    # https://caddyserver.com/docs/running#docker-compose
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN}
+      - "443:443/udp"
+    volumes:
+      - data/caddy_data:/data
+      - data/caddy_config:/config
 
   frontend:
     build:
