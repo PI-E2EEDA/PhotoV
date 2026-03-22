@@ -14,6 +14,8 @@ This repository is a monorepos containing the whole project, including the follo
 ## Visit online
 Visit [photov.srd.rs](https://photov.srd.rs).
 
+Visit the [API docs](https://api.photov.srd.rs/docs) of the backend.
+
 ## Develop locally
 Frontend - see [README](/frontend/README.md). You need [PNPM](https://pnpm.io/) installed.
 ```sh
