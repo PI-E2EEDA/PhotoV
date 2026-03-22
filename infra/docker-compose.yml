@@ -10,8 +10,8 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - data/caddy_data:/data
-      - data/caddy_config:/config
+      - ./data/caddy_data:/data
+      - ./data/caddy_config:/config
 
   frontend:
     build:
