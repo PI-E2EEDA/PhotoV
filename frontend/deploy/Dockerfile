@@ -4,7 +4,7 @@ ADD "https://api.github.com/repos/PI-E2EEDA/PhotoV/commits?per_page=1" latest_co
 WORKDIR /frontend
 COPY . /frontend
 RUN rm -rf node_modules
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm build
 
 # Take /frontend/web/dist as the final useful folder for the web interface
