@@ -9,7 +9,7 @@ from fastapi_users_db_sqlalchemy.access_token import (
     SQLAlchemyBaseAccessTokenTable,
 )
 from fastapi_users import schemas
-from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
+from sqlalchemy.ext.declarative import declarative_base
 
 
 # Any solar installation
@@ -41,8 +41,9 @@ class Measure(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("type", "time", "installation_id"),)
 
 
-# Declare a base from your metadata
-Base: DeclarativeMeta = declarative_base(metadata=MetaData())
+# Declare a base from your metadata. This is required for migrations/env.py target_metadata access.
+mymetadata = MetaData()
+Base = declarative_base(metadata=mymetadata)
 
 
 # User classed with incremental ID, based on Base user table from fastapi_users
