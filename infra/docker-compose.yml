@@ -26,6 +26,7 @@ services:
       network: host
     image: photov/backend
     environment:
+      AUTH_SERVER_SECRET: "${AUTH_SERVER_SECRET}"
       # Make sure to keep that in sync with db service
       POSTGRES_PASSWORD: "${DB_PWD}"
       POSTGRES_USER: photov
