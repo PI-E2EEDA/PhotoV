@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlmodel import Field, MetaData, SQLModel
+from typing import ClassVar
+from sqlmodel import Field, MetaData, SQLModel, Relationship
 from sqlalchemy import UniqueConstraint
 from enum import Enum
 from fastapi_users.db import SQLAlchemyBaseUserTable
@@ -10,6 +11,15 @@ from fastapi_users_db_sqlalchemy.access_token import (
 )
 from fastapi_users import schemas
 from sqlalchemy.ext.declarative import declarative_base
+
+
+# Join tables to give access to some users to some installations
+class UserInstallationLink(SQLModel, table=True):
+    # Note: because foreign_key="user.id" fails with
+    # sqlalchemy.exc.NoReferencedTableError: Foreign key associated with column 'userinstallationlink.user_id' could not find table 'user' with which to generate a foreign key to target column 'id'
+    # we have to manually create foreign keys constraint in the generated migrations...
+    user_id: int | None = Field(default=None, primary_key=True)
+    installation_id: int | None = Field(default=None, primary_key=True)
 
 
 # Any solar installation
@@ -50,6 +60,15 @@ Base = declarative_base(metadata=mymetadata)
 # to have an email+hashed password+
 class User(Base, SQLAlchemyBaseUserTable[Mapped[int]]):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+
+# Set relationships after both are fully defined:
+Installation.users = Relationship(
+    back_populates="installations", link_model=UserInstallationLink
+)
+User.installations = Relationship(
+    back_populates="users", link_model=UserInstallationLink
+)
 
 
 # API Token stored in database and managed by fastapi_users
