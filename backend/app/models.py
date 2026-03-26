@@ -14,8 +14,8 @@ class Installation(SQLModel, table=True):
 
 
 class MeasureType(Enum):
-    POWER = 1
-    ENERGY = 1
+    power = "power"
+    energy = "energy"
 
 
 # A measure of power or energy

@@ -1,8 +1,8 @@
-"""Initial revision
+"""Initial migration
 
-Revision ID: 306c166bf56e
+Revision ID: c76fb8cb31e0
 Revises:
-Create Date: 2026-03-23 00:46:54.853662
+Create Date: 2026-03-26 13:59:26.829916
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = "306c166bf56e"
+revision: str = "c76fb8cb31e0"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -38,7 +38,9 @@ def upgrade() -> None:
     op.create_table(
         "measure",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("type", sa.Enum("POWER", name="measuretype"), nullable=False),
+        sa.Column(
+            "type", sa.Enum("power", "energy", name="measuretype"), nullable=False
+        ),
         sa.Column("time", sa.DateTime(), nullable=False),
         sa.Column("installation_id", sa.Integer(), nullable=True),
         sa.Column("solar_consumption", sa.Float(), nullable=False),
