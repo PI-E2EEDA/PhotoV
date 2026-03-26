@@ -29,6 +29,7 @@ target_metadata = [
     SQLModel.metadata,
     AccessToken.metadata,
 ]  # just AccessToken.metadata was enough for autogeneration to include AccessToken and User models for fastapi_users
+# This difficulty was solved with the solution in this issue: https://github.com/fastapi-users/fastapi-users/issues/262
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

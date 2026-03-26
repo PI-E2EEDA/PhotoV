@@ -71,7 +71,7 @@ fastapi_users = FastAPIUsers[User, int](
 
 
 # Setup the only routes we need from fastapi_users
-def setup_auth_routes(app: FastAPI):
+def setup_auth_routes(app: FastAPI) -> FastAPIUsers:
     # Allow login on /auth/login
     app.include_router(
         fastapi_users.get_auth_router(auth_backend),
@@ -85,3 +85,4 @@ def setup_auth_routes(app: FastAPI):
         prefix="/auth",
         tags=["auth"],
     )
+    return fastapi_users

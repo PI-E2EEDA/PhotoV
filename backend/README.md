@@ -38,3 +38,34 @@ We are using [Fastapi Users](https://fastapi-users.github.io/fastapi-users/lates
 User verification will need to be done manually in the database.
 
 We use the environment variable `AUTH_SERVER_SECRET` to let it sign verification and password reset tokens.
+
+## Initial manual DB setup
+
+Register a first user, change the password if this is production.
+```sh
+set domain "photov.srd.rs" # your domain
+set domain "localhost:8000" # in dev
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d '{ "email": "photov@photov.srd.rs", "password": "demo" }' \
+    http://$domain/auth/register
+
+{"id":1,"email":"photov@photov.srd.rs","is_active":true,"is_superuser":false,"is_verified":false}⏎  
+```
+
+You can run that on the database to manually verify the user.
+```sql
+select * from users; -- to detect what is the ID
+update "user"
+set is_verified = true
+where id = 1 -- change the ID here if needed !
+```
+
+You can now try to login and you'll get an `access_token`.
+```sh
+> curl -s -X POST -d "username=photov@photov.srd.rs&password=demo" http://$domain/auth/login
+
+{"access_token":"dlerz67RQuvv35myyOjtfo5u2BmTu4jd7AJLL0hjWeY","token_type":"bearer"}⏎    
+```
+
+

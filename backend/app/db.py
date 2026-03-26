@@ -43,7 +43,7 @@ async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 # https://fastapi-users.github.io/fastapi-users/latest/configuration/databases/sqlalchemy/
 # TODO: remove duplication ??
-async def get_session(engine):
+async def get_session():
     async with AsyncSession(engine) as session:
         yield session
 
