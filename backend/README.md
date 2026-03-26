@@ -30,3 +30,11 @@ To apply migrations up to the latest defined revisions
 ```sh
 uv run alembic upgrade head
 ```
+
+## Authentication
+
+We are using [Fastapi Users](https://fastapi-users.github.io/fastapi-users/latest/) with the bearer token transport and database strategy. Tokens expire after 3 weeks for inactivity. We only enabled the provided routes for login/logout and register. Password reset, user verification are not needed for now.
+
+User verification will need to be done manually in the database.
+
+We use the environment variable `AUTH_SERVER_SECRET` to let it sign verification and password reset tokens.

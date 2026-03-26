@@ -1,23 +1,24 @@
-from typing import Annotated
+import os
+from typing import Annotated, Optional
+
+from fastapi import Depends, FastAPI, Request, Response
+from fastapi_users import BaseUserManager, FastAPIUsers, IntegerIDMixin
+from fastapi_users.authentication import (
+    AuthenticationBackend,
+    BearerTransport,
+)
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlmodel import Field, SQLModel, create_engine, select
-
-from app.db import get_database_url
-from app.models import Measure, MeasureType
-
-
-async def get_session():
-    async with AsyncSession(engine) as session:
-        yield session
-
+from app.auth import setup_auth_routes
+from app.db import get_database_strategy, get_session, get_user_db
+from app.models import Measure, MeasureType, User
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 app = FastAPI()
 
-engine = create_async_engine(get_database_url(True))
+setup_auth_routes(app)
 
 
 @app.get("/")
