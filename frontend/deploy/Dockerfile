@@ -1,5 +1,6 @@
-FROM fedora:43 as frontendbuild
+FROM fedora:43 AS frontendbuild
 RUN dnf install -y git wget pnpm
+ADD "https://api.github.com/repos/PI-E2EEDA/PhotoV/commits?per_page=1" latest_commit
 WORKDIR /frontend
 COPY . /frontend
 RUN rm -rf node_modules
