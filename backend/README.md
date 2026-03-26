@@ -4,7 +4,7 @@ Read [API docs](https://api.photov.srd.rs/docs)
 
 ## Start dev server
 ```sh
-POSTGRES_USER=photov POSTGRES_DB=photov POSTGRES_PASSWORD=demo uv run fastapi dev
+uv run fastapi dev
 ```
 
 ## Manage database
@@ -13,9 +13,10 @@ We are using [alembic] to manage migrations in our project. You can learn using 
 
 We defined our models inside `app/models.py`.
 
-At the start of the project, we used this command to setup the alembic project, this generate us an `migrations` folder. We also generated the first revision after having defined the first version of the models.
+At the start of the project, we used this command to setup the alembic project, this generate us an `migrations` folder. We had to tweak a few changes in commit `5b55900`. We also generated the first revision after having defined the first version of the models.
 ```sh
 uv run alembic init migrations
+# a few tweaks in 5b55900, then
 uv run alembic revision --autogenerate -m "Initial migration"
 ```
 
