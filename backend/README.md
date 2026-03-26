@@ -42,6 +42,9 @@ User verification will need to be done manually in the database.
 
 We use the environment variable `AUTH_SERVER_SECRET` to let it sign verification and password reset tokens.
 
+## ORM
+We are using a mix of [SQLModel](https://sqlmodel.tiangolo.com/) and [SQLAlchemy](https://docs.sqlalchemy.org/), see `models.py`.
+
 ## Initial manual DB setup
 
 A simple variable to easily change between production or development...
