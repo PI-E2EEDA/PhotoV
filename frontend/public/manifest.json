@@ -1,0 +1,19 @@
+{
+    "name": "PhotoV",
+    "offline_enabled": true,
+    "start_url": "/",
+    "theme_color": "#007ff2",
+    "display": "fullscreen",
+    "icons": [
+        {
+            "src": "favicon.png",
+            "type": "image/png",
+            "sizes": "32x32"
+        },
+        {
+            "src": "square.svg",
+            "type": "image/svg",
+            "sizes": "any"
+        }
+    ]
+}
