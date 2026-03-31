@@ -44,5 +44,6 @@ services:
       POSTGRES_DB: photov
     volumes:
       - ./data/pgdata:/var/lib/postgresql/18/docker
-    ports:
-      - "5432:5432"
+    # Only enable this in development !
+    # ports:
+    #   - "5432:5432"
