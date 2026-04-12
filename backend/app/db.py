@@ -6,7 +6,7 @@ import os
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from collections.abc import AsyncGenerator
 from fastapi_users.db import SQLAlchemyUserDatabase
-from models import User, AccessToken
+from app.models import User, AccessToken
 from fastapi import Depends
 from fastapi_users_db_sqlalchemy.access_token import (
     SQLAlchemyAccessTokenDatabase,

@@ -1,14 +1,15 @@
 # One off task to run manually on the server to import the whole history of a SolarEdge installation
 import argparse
+import time
 from datetime import datetime
 from termcolor import colored
 from solaredge import MonitoringClient
 from dateutil.relativedelta import relativedelta
 import httpx
-from models import Measure, MeasureType
+from app.models import Measure, MeasureType
 
 from sqlalchemy.orm.session import Session
-from pull import (
+from app.tasks.pull import (
     FILE,
     MAX_QUERIES_PER_DAY,
     load_pull_config,
@@ -32,51 +33,29 @@ def print_success(text):
     colored_print(text, "green")
 
 
-def main(installation_id):
-    installations = load_pull_config()
-    for ins in installations:
-        if ins["installation_id"] == installation_id:
-            pull_all_history_month_by_month(ins)
-            return
-    print_error(
-        f"Sorry but no installation is configured in {FILE} with ID {installation_id}"
-    )
-
-
-if __name__ == "__main__":
-    try:
-        parser = argparse.ArgumentParser("pull-history")
-        parser.add_argument(
-            "--installation-id",
-            help=f"The installation ID configured in {FILE} to use when pulling history.",
-            type=int,
-        )
-        args = parser.parse_args()
-        main(args.installation_id)
-    except httpx.HTTPStatusError as e:
-        print_error(e)  # just print http error nicely instead of huge stack trace...
-
-
 def pull_all_history_month_by_month(installation):
     installation_id = installation["installation_id"]
-    print(f"Starting history import process for installation id {installation_id}")
+    print_success(f"Starting import process for installation id {installation_id}")
 
     client = setup_api_client(installation)
     site_id = installation["solaredge_site_id"]
 
     # Get site details to extract the installation date, to know until which date we must load data
     details = client.get_site_details(site_id)
-
+    details = details["details"]
     installation_date = solaredge_date_format_to_datetime(details["installationDate"])
+    print_success(
+        f"Installation {details['name']} was installed on {installation_date}"
+    )
     print(f"installation_date => {format_date(installation_date)}")
 
     if installation_date is None:
         print_error("The installation_date was not found !")
         return
 
-    print(
-        "Quoting the API docs for the Site Energy route. \n'Usage limitation: This API is limited [...] to one month when using timeUnit=QUARTER_OF_AN_HOUR or timeUnit=HOUR.'\nWe have to import the data by coming back in time month after month, until we have all data since the installation_date !"
-    )
+    # Quoting the API docs for the Site Energy route.
+    # "Usage limitation: This API is limited [...] to one month when using timeUnit=QUARTER_OF_AN_HOUR or timeUnit=HOUR."
+    # We have to import the data by coming back in time month after month, until we have all data since the installation_date !
     print("Printing generated month ranges")
     ranges = generate_month_date_ranges(installation_date, datetime.now())
 
@@ -99,15 +78,40 @@ def pull_all_history_month_by_month(installation):
 
 
 # Generate ranges of entire month starting now and going back in the past. The last range (the oldest month period) can start before the given start date.
+# NOTE: we have to slightly change the end date to avoid having issues. The first issue is overlapping ranges. Here is an example
+#
+# Printing generated month ranges
+# 2026-03-12 16:45:25 -> 2026-04-12 16:45:25
+# 2026-02-12 16:45:25 -> 2026-03-12 16:45:25
+# 2026-01-12 16:45:25 -> 2026-02-12 16:45:25
+#
+#
+# Getting energy data for a month 2026-03-12 16:45:25.228125 -> 2026-04-12 16:45:25.228125
+# Saved 2977 energy entries in DB !
+# Getting energy data for a month 2026-03-12 16:45:25.228125 -> 2026-04-12 16:45:25.228125
+# Saved 2977 power entries in DB !
+# Getting energy data for a month 2026-02-12 16:45:25.228125 -> 2026-03-12 16:45:25.228125
+# CRASH !!
+# ...
+# DETAIL:  Key (type, "time", installation_id)=(energy, 2026-03-12 16:45:00, 1) already exists.
+# It seems they are rounding time to the minute, so we get the same timestamp in 2 contiguous months !
+# -> Solution: we need to have the end date to not be on a quarter of an hour. Let's fix the end datetime with time 00:05:00 to avoid this issue.
+#
+# The second issue is that reading the value for the quarter 16:45:00-17:00:00 when the current time is 16:47:00
+# means we have partial energy values and incomplete power average ! We have to make sure to not import quarters that are not done !
+# -> Solution: to be really sure, we go back 2 hours before (15minutes before is not enough because of the minute fix)
 def generate_month_date_ranges(
     start: datetime, end: datetime
 ) -> list[tuple[datetime, datetime]]:
-    past_date = end
+    # The fixes as explained above
+    end = end - relativedelta(hours=2)
+    end.replace(second=0, minute=5)
+
     ranges: list[tuple[datetime, datetime]] = []
-    while past_date > start:
-        one_month_before = past_date - relativedelta(months=1)
-        ranges.append((one_month_before, past_date))
-        past_date = past_date - relativedelta(months=1)
+    while end > start:
+        one_month_before = end - relativedelta(months=1)
+        ranges.append((one_month_before, end))
+        end = one_month_before
     return ranges
 
 
@@ -124,6 +128,8 @@ def import_history_in_given_ranges(
         import_energy_into_db(start, end, client, session, site_id, installation_id)
 
         import_power_into_db(start, end, client, session, site_id, installation_id)
+        # Sleep a short time to avoid spamming too much the API and be able to stop the script in case there are some issues
+        time.sleep(1)
 
 
 # Import energy data from SolarEdge API into our database in the measure table.
@@ -226,7 +232,7 @@ def import_power_into_db(
         session.add(new_measure)
 
     session.commit()  # save all all added measures inside a transaction
-    print(f"Saved {len(production)} power entries in DB !")
+    print_success(f"Saved {len(production)} power entries in DB !")
 
 
 def get_entry_value(entry) -> float:
@@ -235,3 +241,28 @@ def get_entry_value(entry) -> float:
         return 0
     else:
         return val
+
+
+def main(installation_id):
+    installations = load_pull_config()
+    for ins in installations:
+        if ins["installation_id"] == installation_id:
+            pull_all_history_month_by_month(ins)
+            return
+    print_error(
+        f"Sorry but no installation is configured in {FILE} with ID {installation_id}"
+    )
+
+
+if __name__ == "__main__":
+    try:
+        parser = argparse.ArgumentParser("pull-history")
+        parser.add_argument(
+            "--installation-id",
+            help=f"The installation ID configured in {FILE} to use when pulling history.",
+            type=int,
+        )
+        args = parser.parse_args()
+        main(args.installation_id)
+    except httpx.HTTPStatusError as e:
+        print_error(e)  # just print http error nicely instead of huge stack trace...

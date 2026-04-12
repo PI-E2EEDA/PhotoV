@@ -5,7 +5,7 @@ from solaredge import MonitoringClient
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import create_session
 from sqlmodel import create_engine
-from db import get_database_url
+from app.db import get_database_url
 import os
 
 # CONSTANTS
@@ -51,7 +51,7 @@ def setup_api_client(installation):
 
 
 def format_date(given_date: datetime):
-    given_date.strftime("%Y-%m-%d %H:%M:%S")
+    return given_date.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db_sync_session() -> Session:
