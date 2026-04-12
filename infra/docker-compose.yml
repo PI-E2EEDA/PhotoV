@@ -1,5 +1,6 @@
 services:
   proxy:
+    restart: "unless-stopped"
     build: ../proxy/
     image: photov/proxy
     environment:
@@ -14,6 +15,7 @@ services:
       - ./data/caddy_config:/config
 
   frontend:
+    restart: "unless-stopped"
     build:
       context: ../frontend
       dockerfile: "../frontend/deploy/Dockerfile"
@@ -21,6 +23,7 @@ services:
     image: photov/frontend
 
   api:
+    restart: "unless-stopped"
     build:
       context: ../backend
       network: host
