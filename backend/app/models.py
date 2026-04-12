@@ -44,8 +44,8 @@ class Measure(SQLModel, table=True):
     type: MeasureType
     time: datetime
     installation_id: int | None = Field(default=None, foreign_key="installation.id")
-    solar_consumption: float
     solar_production: float
+    solar_consumption: float
     grid_consumption: float
     # make sure the combination of these 3 fields is unique !
     __table_args__ = (UniqueConstraint("type", "time", "installation_id"),)

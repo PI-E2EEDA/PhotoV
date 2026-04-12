@@ -1,14 +1,12 @@
 # This setup is based on this article
 # https://testdriven.io/blog/fastapi-sqlmodel/
-from sqlmodel import create_engine, SQLModel
 from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 import os
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from collections.abc import AsyncGenerator
 from fastapi_users.db import SQLAlchemyUserDatabase
-from app.models import User, AccessToken
+from models import User, AccessToken
 from fastapi import Depends
 from fastapi_users_db_sqlalchemy.access_token import (
     SQLAlchemyAccessTokenDatabase,
@@ -20,7 +18,7 @@ from fastapi_users.authentication.strategy.db import (
 
 
 def get_database_url(use_async: bool) -> str:
-    POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "demo")
+    POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "photov")
     POSTGRES_USER = os.environ.get("POSTGRES_USER", "photov")
     POSTGRES_DB = os.environ.get("POSTGRES_DB", "photov")
     DB_HOST = os.environ.get("DB_HOST", "localhost")
