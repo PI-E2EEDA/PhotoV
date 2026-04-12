@@ -1,0 +1,8 @@
+[
+    {
+        "name": "Home 1",
+        "installation_id": 1,
+        "solaredge_site_id": 12,
+        "solaredge_api_key": "todo"
+    }
+]

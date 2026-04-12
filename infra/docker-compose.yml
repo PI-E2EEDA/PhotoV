@@ -24,8 +24,11 @@ services:
     build:
       context: ../backend
       network: host
+    volumes:
+      - ./creds:/creds
     image: photov/backend
     environment:
+      CREDS_FOLDER: "/creds"
       AUTH_SERVER_SECRET: "${AUTH_SERVER_SECRET}"
       # Make sure to keep that in sync with db service
       POSTGRES_PASSWORD: "${DB_PWD}"
