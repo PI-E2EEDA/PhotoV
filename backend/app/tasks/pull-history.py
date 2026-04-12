@@ -1,4 +1,5 @@
 # One off task to run manually on the server to import the whole history of a SolarEdge installation
+import psycopg
 import argparse
 import time
 from datetime import datetime
@@ -94,8 +95,10 @@ def pull_all_history_month_by_month(installation):
 # CRASH !!
 # ...
 # DETAIL:  Key (type, "time", installation_id)=(energy, 2026-03-12 16:45:00, 1) already exists.
-# It seems they are rounding time to the minute, so we get the same timestamp in 2 contiguous months !
+# It seems they are rounding time, so we get the same timestamp in 2 contiguous months !
 # -> Solution: we need to have the end date to not be on a quarter of an hour. Let's fix the end datetime with time 00:05:00 to avoid this issue.
+#
+# Actually, they are rounding time the quarter ! Solution -> we take one month minus 1 quarter of data for each range.
 #
 # The second issue is that reading the value for the quarter 16:45:00-17:00:00 when the current time is 16:47:00
 # means we have partial energy values and incomplete power average ! We have to make sure to not import quarters that are not done !
@@ -105,13 +108,16 @@ def generate_month_date_ranges(
 ) -> list[tuple[datetime, datetime]]:
     # The fixes as explained above
     end = end - relativedelta(hours=2)
-    end.replace(second=0, minute=5)
+    end = end.replace(second=0, minute=5)
 
     ranges: list[tuple[datetime, datetime]] = []
-    while end > start:
-        one_month_before = end - relativedelta(months=1)
+    while (
+        end + relativedelta(minutes=15)
+    ) > start:  # this check is equivalent at one_month_before > start
+        # almost one month before to avoid including the same entry now and in the next range
+        one_month_before = (end - relativedelta(months=1)) + relativedelta(minutes=15)
         ranges.append((one_month_before, end))
-        end = one_month_before
+        end = end - relativedelta(months=1)  # exactly one month before
     return ranges
 
 
@@ -266,3 +272,5 @@ if __name__ == "__main__":
         main(args.installation_id)
     except httpx.HTTPStatusError as e:
         print_error(e)  # just print http error nicely instead of huge stack trace...
+    except psycopg.errors.UniqueViolation as e:
+        print_error(e)
