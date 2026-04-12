@@ -15,3 +15,35 @@ nav a {
 a {
   @apply text-blue-700 hover:text-blue-400
 }
+
+body {
+	@apply text-lg;
+}
+
+h1 {
+	@apply font-bold text-4xl;
+}
+h2 {
+	@apply text-3xl font-semibold my-2;
+}
+h3 {
+	@apply font-semibold text-2xl mt-3 mb-2;
+}
+h4 {
+	@apply text-xl mt-2 mb-2;
+}
+button {
+	@apply bg-logo-o/50 rounded-sm px-2 m-2 hover:bg-logo-o/70 cursor-pointer;
+}
+
+input {
+	@apply border border-logo-p rounded-sm m-2 p-1;
+}
+
+ol,
+ul {
+	@apply ml-8;
+}
+ul li {
+	@apply list-disc;
+}
