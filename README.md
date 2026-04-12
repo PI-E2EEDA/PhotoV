@@ -53,3 +53,21 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
     docker compose up
     ```
     HTTPS certificates will be generated automatically. You will be able to access your `$DOMAIN` directly in your browser, with API server served on `api.$DOMAIN`.
+
+## SolarEdge integration
+PhotoV is connecting to the SolarEdge API to access solar production, solar consumption and grid consumption, both in power and energy metrics. It first uses the SolarEdge API to retrieve the whole energy and power history at the start via a dedicated script. Second, it will also fetch the latest measures everyday at regular intervals.
+
+### Relevant documentations
+- [SolarEdge Monitoring API](https://knowledge-center.solaredge.com/sites/kc/files/se_monitoring_api.pdf): the most useful docs to understand the API routes, params and JSON structures.
+- [User Roles and Permissions in SolarEdge ONE for C&I](https://knowledge-center.solaredge.com/sites/kc/files/se-user-roles-and-permissions-in-one-for-cni.pdf)
+- [Python package `solaredge`](https://pypi.org/project/solaredge/). Not a tons of documentation but autocompletion or reading source code is enough.
+
+#### How to generate an API token?
+- Go login to the monitoring dashboard: [https://monitoring.solaredge.com](https://monitoring.solaredge.com)
+- If you have access to the left tab named "Admin", this is easy, go under "Site Admin > Site Access > Access Control > API Access".
+- If you don't have this tab (like [many](https://www.reddit.com/r/solar/comments/ateoku/solaredge_admin_account/) [people](https://www.reddit.com/r/SolarUK/comments/1llvn7c/solaredge_no_admin_panel_for_home_owners_no_api/) online), here is what we tried to help you figure it out:
+    - At first, we had only 2 left tabs: Site Overview (all the interesting graphs) and Site Layout (to see the physical position and production of each panel)
+    - We tried asking the company that installed our solar panels. They enabled the "complete access" our SolarEdge account. We received an automated email from SolarEdge indicating the change `Monitoring rights: DASHBOARD_AND_LAYOUT -> FULL_ACCESS` and `Device control access NONE -> CONTROL`.
+    - This has enabled 2 new left tabs: `Analysis` and `Reports` which were sadly completely useless for our needs...
+    - We called again the installer company to ask if they could give us even more access rights. It seems they couldn't do much more...
+    - What we finally did, as they have access to the Admin tab for our installation, is to ask them if they could generate an API key and send it to us. This is not ideal from a security standpoint as we cannot revoke the token without calling them. But the token has worked and we gave up continuing this boring process.

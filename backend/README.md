@@ -42,6 +42,7 @@ User verification will need to be done manually in the database.
 
 We use the environment variable `AUTH_SERVER_SECRET` to let it sign verification and password reset tokens.
 
+
 ## ORM
 We are using a mix of [SQLModel](https://sqlmodel.tiangolo.com/) and [SQLAlchemy](https://docs.sqlalchemy.org/), see `models.py`.
 
@@ -127,3 +128,18 @@ This is the final query used to authenticate as user `photov@photov.srd.rs` with
 ```
 
 More routes are documented in the [API docs](https://api.photov.srd.rs/docs)
+## SolarEdge import
+
+We made a small script to manually pull the whole history of a SolarEdge installation (read root README if needed). You need to configure `pull.config.json` first to include the ID of the installation in our database, the SolarEdge Site ID, and the API token to access this site.
+```
+cd infra
+cp pull.config.json.example pull.config.json
+vi pull.config.json
+```
+
+Then you can run this script by giving the installation_id you want to pull the history from.
+```
+uv run app/tasks/pull-history.py --installation-id 1
+```
+
+The web server will then automatically start every hours pulling the latest hour of measures (4 measures).
