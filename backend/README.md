@@ -42,8 +42,7 @@ We are using [Fastapi Users](https://fastapi-users.github.io/fastapi-users/lates
 
 User verification will need to be done manually in the database.
 
-We use the environment variable `AUTH_SERVER_SECRET` to let it sign verification and password reset tokens.
-
+We use the environment variable `AUTH_SERVER_SECRET` to let it create cryptographic signature for verification and password reset tokens. It makes sure no one can create these tokens without being the server.
 
 ## ORM
 We are using a mix of [SQLModel](https://sqlmodel.tiangolo.com/) and [SQLAlchemy](https://docs.sqlalchemy.org/), see `models.py`.
@@ -164,6 +163,40 @@ When running again, it confirms us the operation has worked.
 > uv run -m app.tasks.pull-history clean --installation-id 1
 Using credentials from ../infra/creds
 No null measures found on the oldest values !
+```
+
+### Coherence check
+You can run various coherence checks among the imported data to see what would be missing or what could be wrong.
+
+```
+> uv run -m app.tasks.pull-history check --installation-id 1
+Using credentials from ../infra/creds
+Starting global verification process for import on installation_id 1
+
+Detected installation downtime of 3.0 hours from 2022-03-27 02:00:00 to 2022-03-27 05:00:00
+
+There are 12 days of missing values, which is 1170 missing quarters between 'energy: 2020-04-22 22:00:00' and 'power: 2020-05-02 15:15:00'
+
+Value -3.0 of solar_consumption is not valid !
+
+Two consecutive measures have the same type, meaning the energy part of 2024-07-17 18:30:00 is missing between 'power: 2024-07-17 18:30:00' and 'power: 2024-07-17 18:45:00'
+
+Detected installation downtime of 8.5 hours from 2026-04-05 07:00:00 to 2026-04-05 15:30:00
+
+
+Finished analysing 23875 entries (quarters of an hour) !
+
+Total number of missing quarters occurences: 1
+
+Printing max values for 11937 energy values in Wh
+MAX solar_production: 2706.0
+MAX solar_consumption: 1979.0
+MAX grid_consumption: 1093.0
+
+Printing max values for 11937 power values in W
+MAX solar_production: 7452.957
+MAX solar_consumption: 4203.542
+MAX grid_consumption: 4919.2925
 ```
 
 ### Frequent refresh
