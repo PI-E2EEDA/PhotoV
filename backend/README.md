@@ -128,13 +128,24 @@ This is the final query used to authenticate as user `photov@photov.srd.rs` with
 ]
 ```
 
-More routes are documented in the [API docs](https://api.photov.srd.rs/docs)
+## API details
+More routes are documented in the [API docs](https://api.photov.srd.rs/docs). Some behaviours details cannot be included in those auotgenerated docs. TODO: check if that's really the case...
+
+Here are some details for some routes
+- Energy and power details on `/measures/{installation_id}/{type}`
+    - The default `limit` argument is 5760 (one day of data). You can disable the limit by setting it as `-1`.
+    - The order is descending by default, to have the newest data first (most recent time first)
+    - With the following example, you'll get 100 results while skipping the first 200 results in ascending order (oldest time first).
+    ```
+    > curl ... http://$domain/measures/1/energy?limit=100&offset=200&ascending=true
+    ```
+
 ## SolarEdge import
 
 ### First import
 We made a small script to manually pull the whole history of a SolarEdge installation (read root README if needed). You need to configure `pull.config.json`. The name is ignored, this is just a help for the server administrator. You have to to include the ID of the installation (the one in Photov's database), the SolarEdge Site ID, and the API token to access this site.
 ```
-cd infra
+cd infra/creds
 cp pull.config.json.example pull.config.json
 vi pull.config.json
 ```

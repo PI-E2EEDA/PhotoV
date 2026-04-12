@@ -466,7 +466,7 @@ def format_measure(measure: Measure):
 
 def check_watt_or_watthour_coherence(value: float, desc: str):
     if value < 0:
-        print_warning(f"Value {value} of {desc} is not valid !")
+        print_warning(f"\nValue {value} of {desc} is not valid !")
 
 
 def get_installation(installation_id):
