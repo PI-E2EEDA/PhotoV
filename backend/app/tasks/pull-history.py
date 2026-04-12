@@ -29,6 +29,10 @@ def colored_print(text, color: str):
     print(colored(text, color))
 
 
+def print_warning(text):
+    colored_print(text, "yellow")
+
+
 def print_error(text):
     colored_print(text, "red")
 
@@ -262,8 +266,14 @@ def get_entry_value(entry) -> float:
 def clean_import(installation_id):
     get_installation(installation_id)  # just to make sure it exists
     session = get_db_sync_session()
+    # We want to see tons of results in batch to avoid filling the RAM. See docs for yield_per:
     # https://docs.sqlalchemy.org/en/21/orm/queryguide/api.html#fetching-large-result-sets-with-yield-per
-    stmt = select(Measure).order_by(asc(Measure.time)).execution_options(yield_per=100)
+    stmt = (
+        select(Measure)
+        .where(Measure.installation_id == installation_id)
+        .order_by(asc(Measure.time))
+        .execution_options(yield_per=100)
+    )
     count = 0
     first = None
     for partition in session.scalars(stmt).partitions():
@@ -302,6 +312,143 @@ def clean_import(installation_id):
             return
 
 
+def check_import(installation_id):
+    get_installation(installation_id)  # just to make sure it exists
+    session = get_db_sync_session()
+    # We want to see tons of results in batch to avoid filling the RAM. See docs for yield_per: https://docs.sqlalchemy.org/en/21/orm/queryguide/api.html#fetching-large-result-sets-with-yield-per
+    stmt = (
+        select(Measure)
+        .where(Measure.installation_id == installation_id)
+        .order_by(asc(Measure.time))
+        .order_by(
+            asc(Measure.type)
+        )  # to make sure a consistent order of "power then energy" (this is the order of the postgres enum)
+        .execution_options(yield_per=100)
+    )
+    print(
+        f"Starting global verification process for import on installation_id {installation_id}"
+    )
+    count = 0
+    last_measure = None
+    # This is a hack to avoid having 3 "max_*" variables, we reuse the Measure class
+    maximums_energy_measures = Measure(
+        id=None,
+        time=datetime.now(),
+        type=MeasureType.energy,
+        solar_consumption=0,
+        solar_production=0,
+        grid_consumption=0,
+    )
+    maximums_power_measures = Measure(
+        id=None,
+        time=datetime.now(),
+        type=MeasureType.power,
+        solar_consumption=0,
+        solar_production=0,
+        grid_consumption=0,
+    )
+
+    missing_quarters_occurences = 0
+    min = 0
+    for partition in session.scalars(stmt).partitions():
+        for measure in partition:
+            check_watt_or_watthour_coherence(
+                measure.solar_production, "solar_production"
+            )
+            check_watt_or_watthour_coherence(
+                measure.solar_consumption, "solar_consumption"
+            )
+            check_watt_or_watthour_coherence(
+                measure.grid_consumption, "grid_consumption"
+            )
+
+            if measure.type == MeasureType.energy:
+                if maximums_energy_measures.grid_consumption < measure.grid_consumption:
+                    maximums_energy_measures.grid_consumption = measure.grid_consumption
+                if (
+                    maximums_energy_measures.solar_consumption
+                    < measure.solar_consumption
+                ):
+                    maximums_energy_measures.solar_consumption = (
+                        measure.solar_consumption
+                    )
+                if maximums_energy_measures.solar_production < measure.solar_production:
+                    maximums_energy_measures.solar_production = measure.solar_production
+
+            if measure.type == MeasureType.power:
+                if maximums_power_measures.grid_consumption < measure.grid_consumption:
+                    maximums_power_measures.grid_consumption = measure.grid_consumption
+                if (
+                    maximums_power_measures.solar_consumption
+                    < measure.solar_consumption
+                ):
+                    maximums_power_measures.solar_consumption = (
+                        measure.solar_consumption
+                    )
+                if maximums_power_measures.solar_production < measure.solar_production:
+                    maximums_power_measures.solar_production = measure.solar_production
+
+            count += 1
+            if last_measure is None:
+                last_measure = measure
+                continue
+
+            # Note: because of the order by, we have power then energy entries in chronological order
+            # If this is the power, we have to make sure we are only at the next quarter
+            if measure.type == MeasureType.power:
+                if last_measure.type == measure.type:
+                    print_warning(
+                        f"\nTwo consecutive measures have the same type, meaning the energy part of {format_date(last_measure.time)} is missing between {format_measure(last_measure)} and {format_measure(measure)}"
+                    )
+                if last_measure.time == measure.time:
+                    print_warning(
+                        f"\nTwo measures have the same time {format_measure(last_measure)} and {format_measure(measure)}"
+                    )
+
+                if last_measure.time + relativedelta(minutes=15) != measure.time:
+                    print_warning(
+                        f"\nThere are {int((measure.time - last_measure.time).total_seconds() / (60 * 60 * 24))} days of missing values, which is {int((measure.time - last_measure.time).total_seconds() / 15)} missing quarters between {format_measure(last_measure)} and {format_measure(measure)}"
+                    )
+                    missing_quarters_occurences += 1
+
+            if measure.type == MeasureType.energy:
+                if last_measure.type == measure.type:
+                    print_warning(
+                        f"\nTwo consecutive measures have the same type, meaning the power part of {format_date(last_measure.time)} is missing between {format_measure(last_measure)} and {format_measure(measure)}"
+                    )
+
+                if last_measure.time != measure.time:
+                    print_warning(
+                        f"\nEnergy entry should have the same time as previous power. Found {format_measure(last_measure)} and {format_measure(measure)}"
+                    )
+
+            last_measure = measure
+
+    print_success(f"\n\nFinished analysing {count} entries (quarters of an hour) !")
+    print(
+        f"\nTotal number of missing quarters occurences: {missing_quarters_occurences}"
+    )
+
+    print(f"\nPrinting max values for {int(count / 2)} energy values in Wh")
+    print(f"MAX solar_production: {maximums_energy_measures.solar_production}")
+    print(f"MAX solar_consumption: {maximums_energy_measures.solar_consumption}")
+    print(f"MAX grid_consumption: {maximums_energy_measures.grid_consumption}")
+
+    print(f"\nPrinting max values for {int(count / 2)} power values in W")
+    print(f"MAX solar_production: {maximums_power_measures.solar_production}")
+    print(f"MAX solar_consumption: {maximums_power_measures.solar_consumption}")
+    print(f"MAX grid_consumption: {maximums_power_measures.grid_consumption}")
+
+
+def format_measure(measure: Measure):
+    return f"'{measure.type.value}: {format_date(measure.time)}'"
+
+
+def check_watt_or_watthour_coherence(value: float, desc: str):
+    if value < 0:
+        print_warning(f"Value {value} of {desc} is not valid !")
+
+
 def get_installation(installation_id):
     installations = load_pull_config()
     for ins in installations:
@@ -336,6 +483,17 @@ def main():
             type=int,
             required=True,
         )
+        check_parser = subcommands.add_parser(
+            "check",
+            help="Perform various check to validate the consistency of the data",
+        )
+        check_parser.add_argument(
+            "--installation-id",
+            help=f"The installation ID. It must be one of the installation_id field in {FILE}.",
+            type=int,
+            required=True,
+        )
+        # TODO: maybe find a way to remove this redundancy of --installation_id definition...
         args = parser.parse_args()
 
         # Arguments routing
@@ -344,6 +502,9 @@ def main():
             return
         if args.command == "clean":
             clean_import(args.installation_id)
+            return
+        if args.command == "check":
+            check_import(args.installation_id)
             return
 
     except httpx.HTTPStatusError as e:
