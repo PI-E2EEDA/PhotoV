@@ -15,6 +15,7 @@ from sqlalchemy.ext.declarative import declarative_base
 class SmartPlug(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
+    installation_id: int | None = Field(default=None, foreign_key="installation.id")
 
 
 class SmartPlugMeasure(SQLModel, table=True):
