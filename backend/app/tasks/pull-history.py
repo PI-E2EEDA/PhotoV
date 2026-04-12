@@ -1,7 +1,10 @@
 # One off task to run manually on the server to import the whole history of a SolarEdge installation
 import psycopg
+from sqlalchemy import cast, delete
+from sqlalchemy.sql.sqltypes import DateTime
 import argparse
 import time
+from sqlmodel import asc, select
 from datetime import datetime
 from termcolor import colored
 from solaredge import MonitoringClient
@@ -103,6 +106,13 @@ def pull_all_history_month_by_month(installation):
 # The second issue is that reading the value for the quarter 16:45:00-17:00:00 when the current time is 16:47:00
 # means we have partial energy values and incomplete power average ! We have to make sure to not import quarters that are not done !
 # -> Solution: to be really sure, we go back 2 hours before (15minutes before is not enough because of the minute fix)
+#
+# Finally, this is the look of ranges when starting the script on 2026-04-12 17:56
+# Printing generated month ranges
+# 2026-03-12 15:20:00 -> 2026-04-12 15:05:00
+# 2026-02-12 15:20:00 -> 2026-03-12 15:05:00
+# 2026-01-12 15:20:00 -> 2026-02-12 15:05:00
+# ...
 def generate_month_date_ranges(
     start: datetime, end: datetime
 ) -> list[tuple[datetime, datetime]]:
@@ -249,28 +259,98 @@ def get_entry_value(entry) -> float:
         return val
 
 
-def main(installation_id):
+def clean_import(installation_id):
+    get_installation(installation_id)  # just to make sure it exists
+    session = get_db_sync_session()
+    # https://docs.sqlalchemy.org/en/21/orm/queryguide/api.html#fetching-large-result-sets-with-yield-per
+    stmt = select(Measure).order_by(asc(Measure.time)).execution_options(yield_per=100)
+    count = 0
+    first = None
+    for partition in session.scalars(stmt).partitions():
+        for measure in partition:
+            if first is None:
+                first = measure
+            if (
+                measure.grid_consumption == 0
+                and measure.solar_production == 0
+                and measure.solar_consumption == 0
+            ):
+                count += 1
+                continue
+            if count == 0:
+                print_success("No null measures found on the oldest values !")
+                return
+
+            first_useful_measure = measure  # just a way to rename it
+            print_success(
+                f"Between the start measure at {format_date(first.time)} and the first useful measure at {format_date(first_useful_measure.time)},\nit founds {count} entries with all 3 fields to zero."
+            )
+            confirm = input(
+                f"Can you confirm you want to delete the first {count} entries for installation_id {installation_id} before {format_date(measure.time)} [y/n]: "
+            )
+            if confirm.lower() != "y":
+                print("Canceled")
+                exit(1)
+            stmt = (
+                delete(Measure)
+                .where(Measure.time < cast(first_useful_measure.time, DateTime))
+                .where(Measure.installation_id == installation_id)
+            )
+            session.execute(stmt)
+            session.commit()
+            print_success("Deletion successful !")
+            return
+
+
+def get_installation(installation_id):
     installations = load_pull_config()
     for ins in installations:
         if ins["installation_id"] == installation_id:
-            pull_all_history_month_by_month(ins)
-            return
+            return ins
     print_error(
         f"Sorry but no installation is configured in {FILE} with ID {installation_id}"
     )
 
 
-if __name__ == "__main__":
+def main():
     try:
         parser = argparse.ArgumentParser("pull-history")
-        parser.add_argument(
+        subcommands = parser.add_subparsers(
+            title="command", dest="command", required=True
+        )
+        pull_parser = subcommands.add_parser(
+            "pull", help="Pull all the history from SolarEdge API"
+        )
+        pull_parser.add_argument(
             "--installation-id",
-            help=f"The installation ID configured in {FILE} to use when pulling history.",
+            help=f"The installation ID. It must be one of the installation_id field in {FILE}.",
             type=int,
         )
+        clean_parser = subcommands.add_parser(
+            "clean",
+            help="Clean the imported data by deleting the oldest null entries",
+        )
+        clean_parser.add_argument(
+            "--installation-id",
+            help=f"The installation ID. It must be one of the installation_id field in {FILE}.",
+            type=int,
+            required=True,
+        )
         args = parser.parse_args()
-        main(args.installation_id)
+
+        # Arguments routing
+        if args.command == "pull":
+            pull_all_history_month_by_month(get_installation(args.installation_id))
+            return
+        if args.command == "clean":
+            clean_import(args.installation_id)
+            return
+
     except httpx.HTTPStatusError as e:
         print_error(e)  # just print http error nicely instead of huge stack trace...
     except psycopg.errors.UniqueViolation as e:
         print_error(e)
+
+
+if __name__ == "__main__":
+    main()
