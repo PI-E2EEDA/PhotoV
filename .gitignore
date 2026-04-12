@@ -2,6 +2,7 @@ node_modules
 infra/data
 __pycache__
 .env
+pull.config.json
 # Preventive measure
 *.sql
 *.json

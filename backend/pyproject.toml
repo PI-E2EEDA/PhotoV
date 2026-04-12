@@ -9,6 +9,10 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi-users[sqlalchemy]>=15.0.4",
     "fastapi[standard]>=0.135.1",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.3.3",
+    "python-dateutil>=2.9.0.post0",
+    "solaredge>=1.1.1",
     "sqlmodel>=0.0.37",
+    "termcolor>=3.3.0",
 ]
