@@ -350,6 +350,9 @@ def check_import(installation_id):
 
     missing_quarters_occurences = 0
     min = 0
+
+    in_downtime = False
+    in_downtime_starttime = None
     for partition in session.scalars(stmt).partitions():
         for measure in partition:
             check_watt_or_watthour_coherence(
@@ -407,7 +410,7 @@ def check_import(installation_id):
 
                 if last_measure.time + relativedelta(minutes=15) != measure.time:
                     print_warning(
-                        f"\nThere are {int((measure.time - last_measure.time).total_seconds() / (60 * 60 * 24))} days of missing values, which is {int((measure.time - last_measure.time).total_seconds() / 15)} missing quarters between {format_measure(last_measure)} and {format_measure(measure)}"
+                        f"\nThere are {int((measure.time - last_measure.time).total_seconds() / (60 * 60 * 24))} days of missing values, which is {int((measure.time - last_measure.time).total_seconds() / 3600 * 4)} missing quarters between {format_measure(last_measure)} and {format_measure(measure)}"
                     )
                     missing_quarters_occurences += 1
 
@@ -421,6 +424,23 @@ def check_import(installation_id):
                     print_warning(
                         f"\nEnergy entry should have the same time as previous power. Found {format_measure(last_measure)} and {format_measure(measure)}"
                     )
+
+            # Detect installation downtimes
+            if (
+                measure.grid_consumption == 0
+                and measure.solar_production == 0
+                and measure.solar_consumption == 0
+            ):
+                if not in_downtime:
+                    in_downtime_starttime = measure.time
+                    in_downtime = True
+            else:
+                if in_downtime:
+                    assert in_downtime_starttime is not None
+                    print_warning(
+                        f"\nDetected installation downtime of {(measure.time - in_downtime_starttime).total_seconds() / 3600} hours from {format_date(in_downtime_starttime)} to {measure.time}"
+                    )
+                    in_downtime = False
 
             last_measure = measure
 
