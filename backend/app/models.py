@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import ClassVar
 from sqlmodel import Field, MetaData, SQLModel, Relationship
 from sqlalchemy import UniqueConstraint
 from enum import Enum
@@ -11,6 +10,18 @@ from fastapi_users_db_sqlalchemy.access_token import (
 )
 from fastapi_users import schemas
 from sqlalchemy.ext.declarative import declarative_base
+
+
+class SmartPlug(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+
+
+class SmartPlugMeasure(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    time: datetime
+    value: float  # in Watt
+    smartplug_id: int | None = Field(default=None, foreign_key="smartplug.id")
 
 
 # Join tables to give access to some users to some installations
