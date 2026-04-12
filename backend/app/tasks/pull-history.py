@@ -4,9 +4,9 @@ from sqlalchemy import cast, delete
 from sqlalchemy.sql.sqltypes import DateTime
 import argparse
 import time
+from app.tasks.util import print_success, print_error, print_warning
 from sqlmodel import asc, select
 from datetime import datetime
-from termcolor import colored
 from solaredge import MonitoringClient
 from dateutil.relativedelta import relativedelta
 import httpx
@@ -23,22 +23,6 @@ from app.tasks.pull import (
     get_db_sync_session,
     format_date,
 )
-
-
-def colored_print(text, color: str):
-    print(colored(text, color))
-
-
-def print_warning(text):
-    colored_print(text, "yellow")
-
-
-def print_error(text):
-    colored_print(text, "red")
-
-
-def print_success(text):
-    colored_print(text, "green")
 
 
 def pull_all_history_month_by_month(installation):
