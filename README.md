@@ -44,15 +44,29 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
     cp .env.example .env
     vi .env
     ```
-- You can quickly generate random values for `DB_PWD` and a `AUTH_SERVER_SECRET` with openssl. Please generate different values for both variables.
+- You can quickly generate random values for `DB_PWD` and a `AUTH_SERVER_SECRET` with alphanumeric values. Please generate different values for both variables.
     ```sh
-    openssl rand -base64 64
+    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64
     ```
-- Finally launch the infrastucture
+- Backup your `.env` in a password manager just in case!
+- Start the database and API
     ```sh
+    docker compose up db api
+    ```
+- Enter the backend to run the database migrations
+    ```sh
+    docker compose exec api sh
+    # inside the opened shell
+    uv run alembic upgrade head
+    ```
+- Stop existing containers and launch the whole infrastucture
+    ```sh
+    docker compose down
     docker compose up
     ```
-    HTTPS certificates will be generated automatically. You will be able to access your `$DOMAIN` directly in your browser, with API server served on `api.$DOMAIN`.
+    HTTPS certificates will be generated automatically by the proxy (Caddy). After a few seconds, you will be able to access your `$DOMAIN` directly in your browser, with API server served on `api.$DOMAIN`.
+- Continue following the [Initial manual DB setup](/backend/README.md#initial-manual-db-setup) section before being able to login as an active user.
+- Continue following the [SolarEdge](/backend/README.md#solaredge-import) section to fully access your SolarEdge history
 
 ## SolarEdge integration
 PhotoV is connecting to the SolarEdge API to access solar production, solar consumption and grid consumption, both in power and energy metrics. It first uses the SolarEdge API to retrieve the whole energy and power history at the start via a dedicated script. Second, it will also fetch the latest measures everyday at regular intervals.

@@ -49,54 +49,57 @@ We are using a mix of [SQLModel](https://sqlmodel.tiangolo.com/) and [SQLAlchemy
 
 ## Initial manual DB setup
 
-A simple variable to easily change between production or development...
-```sh
-# In Fish
-set domain "photov.srd.rs" # your domain
-set domain "localhost:8000" # in dev
-# Or with Bash
-domain="photov.srd.rs" # your domain
-domain="localhost:8000" # in dev
-```
+1. Register a first user.
+    - For development
+        ```sh
+        curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{ "email": "photov@photov.srd.rs", "password": "demo" }' \
+            http://localhost:8000/auth/register
 
-Register a first user, change the password if this is production.
-```sh
-curl -s -X POST \
-    -H "Content-Type: application/json" \
-    -d '{ "email": "photov@photov.srd.rs", "password": "demo" }' \
-    http://$domain/auth/register
+        {"id":1,"email":"photov@photov.srd.rs","is_active":true,"is_superuser":false,"is_verified":false}⏎  
+        ```
+    - For production
+        ```fish
+        set password (tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64)
+        echo Save this password in your pwd manager: $password
+        curl -i -X POST \
+                    -H "Content-Type: application/json" \
+                    -d "{ \"email\": \"photov@photov.srd.rs\", \"password\": \"$password\" }" \
+                    https://api.photov.srd.rs/auth/register
+        ```
+1. Login to the database. In production, you can simply get the `psql` command by running the `admin` task. It will create the full database URL based on the defined credentials.
+    ```sh
+    docker compose exec api sh
+    uv run -m app.tasks.admin
+    ```
+1. You can run that on the database to manually verify the user.
+    ```sql
+    select * from user; -- to detect what is the ID
+    update "user"
+    set is_verified = true
+    where id = 1 -- change the ID here if needed !
+    ```
+1. Same idea to create the first installation and make sure the account has access to it.
+    ```sql
+    INSERT INTO installation
+    VALUES (1, 'Home X', 'Le Moulin Neuf', 46.130400, 1.47356);
 
-{"id":1,"email":"photov@photov.srd.rs","is_active":true,"is_superuser":false,"is_verified":false}⏎  
-```
+    INSERT INTO userinstallationlink
+    VALUES (1, 1); -- the order is (user_id, installation_id)
+    ```
 
-You can run that on the database to manually verify the user.
-```sql
-select * from users; -- to detect what is the ID
-update "user"
-set is_verified = true
-where id = 1 -- change the ID here if needed !
-```
+1. You can now try to login and you'll get an `access_token`.
+    ```sh
+    > curl -s -X POST -d "username=photov@photov.srd.rs&password=demo" http://localhost:8000/auth/login
 
-Same idea to create the first installation and make sure the account has access to it.
-```sql
-INSERT INTO installation
-VALUES (1, 'Home X', 'Le Moulin Neuf', 46.130400, 1.47356)
-
-INSERT INTO userinstallationlink
-VALUES (1, 1) -- the order is (user_id, installation_id)
-```
-
-You can now try to login and you'll get an `access_token`.
-```sh
-> curl -s -X POST -d "username=photov@photov.srd.rs&password=demo" http://$domain/auth/login
-
-{"access_token":"dlerz67RQuvv35myyOjtfo5u2BmTu4jd7AJLL0hjWeY","token_type":"bearer"}⏎    
-```
+    {"access_token":"dlerz67RQuvv35myyOjtfo5u2BmTu4jd7AJLL0hjWeY","token_type":"bearer"}⏎    
+    ```
 
 ## Example query
 This is the final query used to authenticate as user `photov@photov.srd.rs` with previous token, and get all the energy values for installation 1.
 ```sh
-> curl -H "Authorization: Bearer dlerz67RQuvv35myyOjtfo5u2BmTu4jd7AJLL0hjWeY" http://$domain/measures/1/energy
+> curl -H "Authorization: Bearer dlerz67RQuvv35myyOjtfo5u2BmTu4jd7AJLL0hjWeY" http://localhost:8000/measures/1/energy
 [
   {
     "type": "energy",
@@ -137,7 +140,7 @@ Here are some details for some routes
     - The order is descending by default, to have the newest data first (most recent time first)
     - With the following example, you'll get 100 results while skipping the first 200 results in ascending order (oldest time first).
     ```
-    > curl ... http://$domain/measures/1/energy?limit=100&offset=200&ascending=true
+    > curl ... http://localhost:8000/measures/1/energy?limit=100&offset=200&ascending=true
     ```
 
 ## SolarEdge import
