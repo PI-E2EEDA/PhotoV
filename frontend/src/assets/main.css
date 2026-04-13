@@ -40,7 +40,7 @@ input, select {
 	@apply border border-logo-p rounded-sm m-2 p-1;
 }
 table, th, td {
-  @apply border border-logo-p p-3;
+  @apply border border-logo-p px-3;
 }
 
 ol,
