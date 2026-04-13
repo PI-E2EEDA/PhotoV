@@ -1,8 +1,10 @@
 from typing import Annotated
-
+from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException
-from sqlmodel import select
+from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.auth import setup_auth_routes
 from app.db import get_session
@@ -18,6 +20,24 @@ from app.models import (
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 app = FastAPI()
+
+# Configure CORS to allow any localhost website + the production domain as well.
+PHOTOV_DOMAIN = os.environ.get("PHOTOV_DOMAIN")
+if PHOTOV_DOMAIN is None:  # because it will be None in dev !
+    print("Error PHOTOV_DOMAIN is not defined !")
+    exit(2)
+origins = [
+    "http://localhost:5173",
+    "https://" + PHOTOV_DOMAIN,
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 fastapi_users_setup = setup_auth_routes(app)
 
@@ -61,7 +81,7 @@ async def validate_current_user_can_access_installation(
         )
     )
     installation = result2.scalars().first()
-    # This should be unreachable...
+    # This should be unreachable because of foreign keys integrity...
     if installation is None:
         raise HTTPException(
             status_code=404,
@@ -78,17 +98,35 @@ async def get_measures(
     installation_id: int,
     type: MeasureType,
     user: User = Depends(current_user_fn),
-):
+    ascending: bool = False,
+    limit: int = 5760,  # this is one day of data
+    offset: int = 0,
+) -> list[Measure]:
     await validate_current_user_can_access_installation(
         user.id, installation_id, session
     )
-    print(f"request as user {user.email}")
-    results = await session.execute(  # ignore this warning
+
+    print(
+        f"Request {limit} {type.value} measures as user {user.email} on {datetime.now()}"
+    )
+    stmt = (
         select(Measure)
         .where(Measure.installation_id == installation_id)
         .where(Measure.type == type)
-        .limit(3)
+        .order_by(asc(Measure.time) if ascending else desc(Measure.time))
+        .offset(offset)
     )
+    # This is a way to avoid any limits if needed, with i.e. -1.
+    if limit > 0:
+        stmt = stmt.limit(limit)
+
+    if offset < 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Offset {offset} cannot be negative !",
+        )
+
+    results = await session.execute(stmt)  # ignore this warning
     return results.scalars().all()
 
 
