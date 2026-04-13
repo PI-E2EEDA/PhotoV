@@ -101,7 +101,7 @@ async def get_measures(
     ascending: bool = False,
     limit: int = 5760,  # this is one day of data
     offset: int = 0,
-):
+) -> list[Measure]:
     await validate_current_user_can_access_installation(
         user.id, installation_id, session
     )

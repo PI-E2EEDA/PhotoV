@@ -61,6 +61,26 @@ export interface HTTPValidationError {
   detail?: ValidationError[]
 }
 
+/** Measure */
+export interface Measure {
+  /** Id */
+  id?: number | null
+  type: MeasureType
+  /**
+   * Time
+   * @format date-time
+   */
+  time: string
+  /** Installation Id */
+  installation_id?: number | null
+  /** Solar Production */
+  solar_production: number
+  /** Solar Consumption */
+  solar_consumption: number
+  /** Grid Consumption */
+  grid_consumption: number
+}
+
 /** SmartPlug */
 export interface SmartPlug {
   /** Id */
@@ -494,7 +514,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       },
       params: RequestParams = {},
     ) =>
-      this.request<any, HTTPValidationError>({
+      this.request<Measure[], HTTPValidationError>({
         path: `/measures/${installationId}/${type}`,
         method: 'GET',
         query: query,

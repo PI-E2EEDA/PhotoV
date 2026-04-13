@@ -14,7 +14,8 @@
         "lint:oxlint": "oxlint . --fix",
         "lint:eslint": "eslint . --fix --cache",
         "format": "prettier --write --experimental-cli src/",
-        "apigen": "pnpx swagger-typescript-api generate --path https://api.photov.srd.rs/openapi.json -o src/api"
+        "apigen": "pnpx swagger-typescript-api generate --path https://api.photov.srd.rs/openapi.json -o src/api",
+        "localapigen": "pnpx swagger-typescript-api generate --path http://localhost:8000/openapi.json -o src/api"
     },
     "dependencies": {
         "@tailwindcss/vite": "^4.2.2",
