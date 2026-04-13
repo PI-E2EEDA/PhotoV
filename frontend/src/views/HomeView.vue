@@ -1,13 +1,12 @@
 <script setup lang="ts">
+import LandingPage from '@/components/LandingPage.vue';
+import DashBoard from '@/components/DashBoard.vue';
+import { useApiStore } from '@/stores/api';
+const api = useApiStore()
 </script>
 
 <template>
-  <div class="flex flex-col h-[80vh] justify-center items-center text-center">
-    <img alt="PhotoV logo" class="mx-auto h-32 my-10" src="@/assets/logo.svg" />
-    <h1 class="text-4xl sm:max-w-1/2 font-semibold">Optimize your auto consumption to maximize the impact of your solar
-      installation.
-    </h1>
-
-    <a class="text-xl my-3" href="https://github.com/PI-E2EEDA/PhotoV">See Git repository on GitHub</a>
-  </div>
+  <LandingPage v-if="!api.logged"></LandingPage>
+  <DashBoard v-if="api.logged">
+  </DashBoard>
 </template>
