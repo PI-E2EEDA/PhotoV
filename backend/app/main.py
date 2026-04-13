@@ -21,17 +21,15 @@ from app.models import (
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 app = FastAPI()
 
-fastapi_users_setup = setup_auth_routes(app)
-
 # Configure CORS to allow any localhost website + the production domain as well.
-DOMAIN = os.environ.get("DOMAIN")
+PHOTOV_DOMAIN = os.environ.get("PHOTOV_DOMAIN")
+if PHOTOV_DOMAIN is None:  # because it will be None in dev !
+    print("Error PHOTOV_DOMAIN is not defined !")
+    exit(2)
 origins = [
-    "http://localhost:*",
+    "http://localhost:5173",
+    "https://" + PHOTOV_DOMAIN,
 ]
-if DOMAIN is not None:  # because it will be None in dev !
-    origins.append(
-        "https://" + DOMAIN,
-    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +38,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+fastapi_users_setup = setup_auth_routes(app)
 
 
 @app.get("/")
