@@ -33,7 +33,7 @@ h4 {
 	@apply text-xl mt-2 mb-2;
 }
 button {
-	@apply bg-logo-p/50 rounded-sm px-2 m-2 hover:bg-logo-p/70 cursor-pointer;
+	@apply bg-logo-p/50 rounded-sm px-2 m-2 disabled:text-logo-p/80 disabled:bg-logo-p/20 hover:bg-logo-p/70 cursor-pointer disabled:cursor-auto;
 }
 
 input, select {
