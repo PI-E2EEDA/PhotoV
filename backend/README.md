@@ -155,7 +155,36 @@ vi pull.config.json
 
 Then you can run this script by giving the installation_id you want to pull the history from.
 ```
-uv run -m app.tasks.pull-history pull --installation-id 1
+docker compose exec api sh
+```
+Inside the api container
+```
+> uv run -m app.tasks.pull-history pull --installation-id 1
+Using credentials from /creds
+Starting import process for installation id 1
+Installation Home1 was installed on 2020-09-13 00:00:00
+Printing generated month ranges
+2026-03-13 09:20:00 -> 2026-04-13 09:05:00
+2026-02-13 09:20:00 -> 2026-03-13 09:05:00
+2026-01-13 09:20:00 -> 2026-02-13 09:05:00
+2025-12-13 09:20:00 -> 2026-01-13 09:05:00
+2025-11-13 09:20:00 -> 2025-12-13 09:05:00
+2025-10-13 09:20:00 -> 2025-11-13 09:05:00
+...
+There is a total of 83 months to import :)
+Can you confirm the start of the import ? (Y/N) Y
+
+--------
+
+Getting energy data for a month 2026-03-13 09:20:00.508080 -> 2026-04-13 09:05:00.508080
+Saved 2976 energy entries in DB !
+Getting energy data for a month 2026-03-13 09:20:00.508080 -> 2026-04-13 09:05:00.508080
+Saved 2976 power entries in DB !
+Getting energy data for a month 2026-02-13 09:20:00.508080 -> 2026-03-13 09:05:00.508080
+Saved 2688 energy entries in DB !
+Getting energy data for a month 2026-02-13 09:20:00.508080 -> 2026-03-13 09:05:00.508080
+Saved 2688 power entries in DB !
+...
 ```
 
 ### Cleanup
