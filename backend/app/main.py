@@ -3,6 +3,8 @@ from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException
 from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.auth import setup_auth_routes
 from app.db import get_session
@@ -20,6 +22,24 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 app = FastAPI()
 
 fastapi_users_setup = setup_auth_routes(app)
+
+# Configure CORS to allow any localhost website + the production domain as well.
+DOMAIN = os.environ.get("DOMAIN")
+origins = [
+    "http://localhost:*",
+]
+if DOMAIN is not None:  # because it will be None in dev !
+    origins.append(
+        "https://" + DOMAIN,
+    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")

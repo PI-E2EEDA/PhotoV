@@ -31,6 +31,7 @@ services:
       - ./creds:/creds
     image: photov/backend
     environment:
+      DOMAIN: ${DOMAIN}
       CREDS_FOLDER: "/creds"
       AUTH_SERVER_SECRET: "${AUTH_SERVER_SECRET}"
       # Make sure to keep that in sync with db service
