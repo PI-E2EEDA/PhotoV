@@ -4,7 +4,7 @@ WORKDIR /frontend
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /frontend/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY . /frontend
-RUN pnpm build
+RUN pnpm build-only
 
 # Take /frontend/web/dist as the final useful folder for the web interface
 FROM caddy:2.8-alpine
