@@ -1,6 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, useRouter } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
+import { useApiStore } from '@/stores/api'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -24,6 +25,13 @@ const router = createRouter({
       component: () => import('../views/AboutView.vue'),
     },
   ],
+})
+router.beforeEach((a) => {
+  const api = useApiStore()
+  const router = useRouter()
+  if (a.path == '/login' && api.logged) {
+    router.push({ name: 'home' })
+  }
 })
 
 export default router
