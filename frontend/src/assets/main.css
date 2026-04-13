@@ -33,11 +33,14 @@ h4 {
 	@apply text-xl mt-2 mb-2;
 }
 button {
-	@apply bg-logo-o/50 rounded-sm px-2 m-2 hover:bg-logo-o/70 cursor-pointer;
+	@apply bg-logo-p/50 rounded-sm px-2 m-2 hover:bg-logo-p/70 cursor-pointer;
 }
 
-input {
+input, select {
 	@apply border border-logo-p rounded-sm m-2 p-1;
+}
+table, th, td {
+  @apply border border-logo-p p-3;
 }
 
 ol,
