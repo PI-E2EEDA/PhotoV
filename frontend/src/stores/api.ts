@@ -17,7 +17,12 @@ export const useApiStore = defineStore(
         config = { baseApiParams: { headers: { Authorization: 'Bearer ' + token.value } } }
       }
       const api = new Api(config)
-      api.baseUrl = 'https://' + domain.value
+      if (domain.value.includes('localhost:')) {
+        // fastapi doesn't have HTTPS on localhost
+        api.baseUrl = 'http://' + domain.value
+      } else {
+        api.baseUrl = 'https://' + domain.value
+      }
       api.setSecurityData({})
       return api
     }

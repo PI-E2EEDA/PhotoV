@@ -8,6 +8,17 @@ Note: some example data have been modified to avoid sharing the real data, which
 All energy values are stored in **Wh** and all power values are stored in **W**. All further calculations to show kW or kWh should be additionnal logic on top of the state using IS units.
 
 ## Start dev server
+Make sure you have [UV](https://docs.astral.sh/uv/) installed.
+
+Make sure to define the `AUTH_SERVER_SECRET` environment variable. Here is a random value to use in development only.
+```sh
+# For Fish
+set -x AUTH_SERVER_SECRET tYiSQwjNqZDGIbhkIq4WKFgBQWLRqrzIa/k1hpzIajEBnWAU++jTuO7F/Zcfdx2HQS0zkhDU8gbFyIZHiaFa9A==
+# For Bash
+export AUTH_SERVER_SECRET=tYiSQwjNqZDGIbhkIq4WKFgBQWLRqrzIa/k1hpzIajEBnWAU++jTuO7F/Zcfdx2HQS0zkhDU8gbFyIZHiaFa9A==
+```
+
+Then you can simply start the FastAPI server.
 ```sh
 uv run fastapi dev
 ```
