@@ -1,7 +1,7 @@
 from typing import Annotated
 from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException
-from sqlmodel import asc, desc, select
+from sqlmodel import asc, desc, select, insert
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -145,8 +145,11 @@ async def create_smartplug(
     )
     smartplug.id = None
 
-    ## TODO insert
-    ## TODO return the generated object
+    session.add(smartplug)
+    await session.commit()
+    await session.refresh(smartplug)
+
+    return smartplug
 
 
 @app.post(
@@ -166,11 +169,7 @@ async def send_smartplug_measure(
     related_smartplug = await session.execute(  # ignore this warning
         select(SmartPlug).where(SmartPlug.id == measure.smartplug_id)
     )
-    if related_smartplug.first() is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid smartplug_id for this measure !",
-        )
+
     if related_smartplug.first() is None:
         raise HTTPException(
             status_code=400,
@@ -178,8 +177,16 @@ async def send_smartplug_measure(
         )
 
     measure.id = None
-    # Check the time is not in the future
-    # Check the value is not negative
-    print(f"Request to save new smartplug value")
+    measure.time = datetime.fromisoformat(str(measure.time))
 
-    # todo return new object
+    if measure.time > datetime.now():
+        raise HTTPException(status_code=400, detail="Time cannot be in the future")
+
+    if measure.value < 0 :
+        raise HTTPException(status_code=400, detail="Value cannot be negative")
+    
+    session.add(measure)
+    await session.commit()
+    await session.refresh(measure)
+    
+    return measure

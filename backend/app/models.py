@@ -20,7 +20,7 @@ class SmartPlug(SQLModel, table=True):
 
 class SmartPlugMeasure(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    time: datetime
+    time: datetime # UTC+2 in summer and UTC+1 in winter
     value: float  # in Watt
     smartplug_id: int | None = Field(default=None, foreign_key="smartplug.id")
 
