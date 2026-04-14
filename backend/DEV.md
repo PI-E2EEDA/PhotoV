@@ -91,7 +91,7 @@ VALUES (1, 1); -- the order is (user_id, installation_id)
 \q
 ```
 
-Login:
+Login (to become your token):
 ```sh
 curl -s -X POST \
     -d "username=photov@photov.srd.rs&password=demo" \
