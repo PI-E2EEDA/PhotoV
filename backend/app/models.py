@@ -64,6 +64,20 @@ class Measure(SQLModel, table=True):
     # make sure the combination of these 3 fields is unique !
     __table_args__ = (UniqueConstraint("type", "time", "installation_id"),)
 
+class WeatherHistory(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    point_id: str = Field(index=True)
+    temperature_2m: float
+    shortwave_radiation: float
+    diffuse_radiation: float
+    precipitation: float
+    windspeed_10m: float
+    cloudcover_high: float
+    cloudcover_medium: float
+    cloudcover_low: float
+    __table_args__ = (UniqueConstraint("time", "point_id"),)
+
 
 # Declare a base from your metadata. This is required for migrations/env.py target_metadata access.
 mymetadata = MetaData()
