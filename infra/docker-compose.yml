@@ -4,7 +4,6 @@ services:
     image: photov/proxy
     environment:
       DOMAIN: ${DOMAIN}
-    # https://caddyserver.com/docs/running#docker-compose
     ports:
       - "80:80"
       - "443:443"
@@ -25,23 +24,26 @@ services:
       context: ../backend
       network: host
     image: photov/backend
+    volumes:
+      - ../backend:/app
+      - /app/.venv
+    env_file:
+      - ../backend/.env
     environment:
-      # Make sure to keep that in sync with db service
-      POSTGRES_PASSWORD: "${DB_PWD}"
+      POSTGRES_PASSWORD: "${DB_PWD:-demo}"
       POSTGRES_USER: photov
       POSTGRES_DB: photov
-      DB_HOST: db # the other database service hostname
+      DB_HOST: db
 
-  # See docs on https://hub.docker.com/_/postgres
   db:
-    image: postgres
+    image: postgres:15-alpine
     restart: always
     shm_size: 128mb
     environment:
-      POSTGRES_PASSWORD: "${DB_PWD}"
+      POSTGRES_PASSWORD: "${DB_PWD:-demo}"
       POSTGRES_USER: photov
       POSTGRES_DB: photov
     volumes:
-      - ./data/pgdata:/var/lib/postgresql/18/docker
+      - ./data/pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"

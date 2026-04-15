@@ -2,3 +2,5 @@ node_modules
 infra/data
 __pycache__
 .env
+
+local_db_data/
