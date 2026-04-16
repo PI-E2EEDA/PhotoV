@@ -128,6 +128,59 @@ async def get_measures(
     return results.scalars().all()
 
 
+@app.get(
+    "/smartplugs/{installation_id}/",
+    description="Get list of smartplugs for the installation",
+)
+async def get_smartplugs(
+    session: SessionDep,
+    installation_id: int,
+    user: User = Depends(current_user_fn),
+) -> list[SmartPlug]:
+    await validate_current_user_can_access_installation(
+        user.id, installation_id, session
+    )
+    stmt = select(SmartPlug).where(SmartPlug.installation_id == installation_id)
+    results = await session.execute(stmt)  # ignore this warning
+    return results.scalars().all()
+
+
+@app.get(
+    "/smartplugs/{installation_id}/{smartplug_id}",
+    description="Get measures for given smartplug for the given installation",
+)
+async def get_smartplug_measures(
+    session: SessionDep,
+    installation_id: int,
+    smartplug_id: int,
+    user: User = Depends(current_user_fn),
+) -> list[SmartPlugMeasure]:
+    await validate_current_user_can_access_installation(
+        user.id, installation_id, session
+    )
+
+    # Check the smartplug_id does exist and can be accessed
+    related_smartplug = await session.execute(  # ignore this warning
+        select(SmartPlug).where(SmartPlug.id == smartplug_id)
+    )
+    # If we don't have access to the installation linked to the smartplug
+    # or when this smartplug doesn't exist, we need to refuse the request
+    maybe_smartplug = related_smartplug.scalars().first()
+    if maybe_smartplug is None or maybe_smartplug.installation_id != installation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid smartplug_id or installation_id !",
+        )
+
+    stmt = (
+        select(SmartPlugMeasure)
+        .where(SmartPlugMeasure.smartplug_id == smartplug_id)
+        .order_by(asc(SmartPlugMeasure.time))
+    )
+    results = await session.execute(stmt)  # ignore this warning
+    return results.scalars().all()
+
+
 @app.post(
     "/smartplugs/",
     description="Create a new smartplug with a name",

@@ -111,13 +111,13 @@ curl -X POST "http://localhost:8000/smartplugs/" \
 }'
 ```
 
-Insert a new measure for smartplug `Bouilloire`. The time must follow this given format without any timezone. We want to store local times without any UTC stuff.
+Insert a new measure for smartplug `Bouilloire`. The time must follow the ISO 8160 format (see example) without any timezone because we just want to store local times without any UTC stuff.
 ```sh
 curl -i -X POST "http://localhost:8000/smartplugs/1/" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $token" \
         -d '{
-            "time": "2026-04-16 20:03:21",
+            "time": "2026-04-16 23:06:51.367321",
             "value": 16.3,
             "smartplug_id": 1
         }'
