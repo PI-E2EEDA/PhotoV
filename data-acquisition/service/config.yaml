@@ -1,0 +1,15 @@
+installation_id: 1
+api_base_url: "http://localhost:8000"
+api_token: "rIyLzzS_oWcpy2yr7wBZE9HDGkkjwkLXEiibgAdicas"
+acquisition_interval_seconds: 10
+
+smartplugs:
+  - id: 1            # id dans la DB
+    ip: "172.20.10.2"
+    port: 6053
+    power_key: 2391494160
+
+  - id: 2
+    ip: "172.20.10.4"
+    port: 6053
+    power_key: 2391494160

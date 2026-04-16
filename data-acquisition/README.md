@@ -1,5 +1,5 @@
 1. Plug the smart plug in
-2. If this is the first time or after a reset (reset it if you want to change it for another network). Connect your phone et computer to the Wi-FI hotspot "Swiss-Domotique_XXXX", wait several seconds and select a wifi and enter the password
+2. If this is the first time or if the network that was configured is no longer available. Connect your phone et computer to the Wi-FI hotspot "Swiss-Domotique_XXXX", wait several seconds and select a wifi and enter the password
 3. The smart plug is now connected to the network. You need to retrieve his IP adress by using this command : `nmap -p 6053 XXX.XXX.XXX.XXX/24`. (The port 6053 is the default port for this devices). Check all the adresses listed and the right adress is where the state is `OPEN`. For example, we obtained this :
 
     ```text
@@ -39,7 +39,7 @@
     ```
 
 4. You can now access the integrated webserver a the IP adress found. For example : [http://192.168.1.205](http://192.168.1.205)
-5. To retrieve automatically the measures, you first need to print all the informations about the device. Run the script : [print_info.py](./print_info.py). You will have something like this :
+5. To retrieve automatically the measures, you first need to print all the informations about the device. Run the script : [print_info.py](./setup/print_info.py). You will have something like this :
 
     ```text
     data-acquisition git:(main) ✗ uv run main.py
@@ -63,5 +63,7 @@
     SensorInfo(object_id='power', key=2391494160, name='Power', disabled_by_default=False, icon='mdi:power', entity_category=<EntityCategory.NONE: 0>, device_id=0, device_class='power', unit_of_measurement='W', accuracy_decimals=1, force_update=False, state_class=<SensorStateClass.MEASUREMENT: 1>, legacy_last_reset_type=<LastResetType.NONE: 0>), 
     ```
 
-6. With those information, you can now create a script to retrieve the power with the [Python Client for ESPHome native API](https://github.com/esphome/aioesphomeapi). There is no documentation about the API, but you can check the code here to see the available methods of this API : [link](https://github.com/esphome/aioesphomeapi/blob/main/aioesphomeapi/client.py#L252)
+6. With those information, you can now test the connection with the [test script](./setup/get_power_test.py). Once the connection test you can :
+    - use the service which send the measurement to the API in the "service" folder
+    - create your own script to retrieve the power with the [Python Client for ESPHome native API](https://github.com/esphome/aioesphomeapi). There is no documentation about the API, but you can check the code here to see the available methods of this API : [link](https://github.com/esphome/aioesphomeapi/blob/main/aioesphomeapi/client.py#L252)
 
