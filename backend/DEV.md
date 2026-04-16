@@ -91,11 +91,36 @@ VALUES (1, 1); -- the order is (user_id, installation_id)
 \q
 ```
 
-Login (to become your token):
+Login (to generate your API token):
 ```sh
 curl -s -X POST \
     -d "username=photov@photov.srd.rs&password=demo" \
     http://localhost:8000/auth/login
+```
+
+Optionally, here is how to test creating a smartplug and inserting measures.
+
+Insert a new smartplug named `Bouilloire`
+```sh
+curl -X POST "http://localhost:8000/smartplugs/" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $token" \
+    -d '{
+    "name": "Bouilloire",
+    "installation_id": 1
+}'
+```
+
+Insert a new measure for smartplug `Bouilloire`. The time must follow this given format without any timezone. We want to store local times without any UTC stuff.
+```sh
+curl -i -X POST "http://localhost:8000/smartplugs/1/" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $token" \
+        -d '{
+            "time": "2026-04-16 20:03:21",
+            "value": 16.3,
+            "smartplug_id": 1
+        }'
 ```
 
 ## 5. Start the frontend (optional)
