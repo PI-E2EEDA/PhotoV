@@ -17,18 +17,14 @@ Visit [photov.srd.rs](https://photov.srd.rs).
 Visit the [API docs](https://api.photov.srd.rs/docs) of the backend.
 
 ## Develop locally
-Frontend - see [README](/frontend/README.md). You need [PNPM](https://pnpm.io/) installed.
+**Frontend** - see [README](/frontend/README.md). You need [PNPM](https://pnpm.io/) installed.
 ```sh
 cd frontend
 pnpm dev
 ```
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
-Backend - see [README](/backend/README.md). You need [UV](https://docs.astral.sh/uv/) installed.
-```sh
-cd backend
-uv run fastapi dev
-```
+**Backend** - see [README](/backend/README.md) and [DEV doc](/backend/DEV.md). You need [UV](https://docs.astral.sh/uv/) installed.
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
