@@ -128,9 +128,6 @@ async def get_measures(
     return results.scalars().all()
 
 
-# TODO: add routes to get smartplugs and smartplugs measures for the frontend
-
-
 @app.post(
     "/smartplugs/",
     description="Create a new smartplug with a name",
@@ -144,6 +141,7 @@ async def create_smartplug(
         user.id, smartplug.installation_id, session
     )
     smartplug.id = None
+    smartplug.name = smartplug.name.strip()
 
     session.add(smartplug)
     await session.commit()
@@ -169,11 +167,13 @@ async def send_smartplug_measure(
     related_smartplug = await session.execute(  # ignore this warning
         select(SmartPlug).where(SmartPlug.id == measure.smartplug_id)
     )
-
-    if related_smartplug.first() is None:
+    # If we don't have access to the installation linked to the smartplug
+    # or when this smartplug doesn't exist, we need to refuse the request
+    maybe_smartplug = related_smartplug.scalars().first()
+    if maybe_smartplug is None or maybe_smartplug.installation_id != installation_id:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid smartplug_id for this measure !",
+            detail="Invalid smartplug_id for this measure !",
         )
 
     measure.id = None
@@ -182,11 +182,11 @@ async def send_smartplug_measure(
     if measure.time > datetime.now():
         raise HTTPException(status_code=400, detail="Time cannot be in the future")
 
-    if measure.value < 0 :
+    if measure.value < 0:
         raise HTTPException(status_code=400, detail="Value cannot be negative")
-    
+
     session.add(measure)
     await session.commit()
     await session.refresh(measure)
-    
+
     return measure
