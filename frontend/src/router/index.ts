@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, useRouter } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '@/views/LoginView.vue'
 import { useApiStore } from '@/stores/api'
+import SmartplugsView from '@/views/SmartplugsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,6 +18,12 @@ const router = createRouter({
       name: 'login',
       meta: { title: 'Login' },
       component: LoginView,
+    },
+    {
+      path: '/smartplugs',
+      name: 'smartplugs',
+      meta: { title: 'Smartplugs' },
+      component: SmartplugsView,
     },
     {
       path: '/about',

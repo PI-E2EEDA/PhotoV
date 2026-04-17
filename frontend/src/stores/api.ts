@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { Api, MeasureType, type Measure } from '@/api/Api'
+import { Api, MeasureType, type Measure, type SmartPlug, type SmartPlugMeasure } from '@/api/Api'
 import { useRouter } from 'vue-router'
 
 export const useApiStore = defineStore(
@@ -54,7 +54,7 @@ export const useApiStore = defineStore(
       logged.value = false
     }
 
-    async function getLatestMeasure(
+    async function getLatestMeasures(
       type: MeasureType,
       ascending: boolean = false,
       limit = 100,
@@ -76,9 +76,52 @@ export const useApiStore = defineStore(
       return []
     }
 
+    async function getSmartplugMeasures(
+      installation_id: number,
+      smartplug_id: number,
+    ): Promise<SmartPlugMeasure[]> {
+      const api = getApi()
+      try {
+        const result =
+          await api.smartplugs.getSmartplugMeasuresSmartplugsInstallationIdSmartplugIdGet(
+            installation_id,
+            smartplug_id,
+          )
+        if (result.ok) {
+          return result.data
+        }
+      } catch (e) {
+        console.log(e)
+      }
+      return []
+    }
+
+    async function getSmartplugsList(installation_id: number): Promise<SmartPlug[]> {
+      const api = getApi()
+      try {
+        const result =
+          await api.smartplugs.getSmartplugsSmartplugsInstallationIdGet(installation_id)
+        if (result.ok) {
+          return result.data
+        }
+      } catch (e) {
+        console.log(e)
+      }
+      return []
+    }
+
     // const doubleCount = computed(() => count.value * 2)
 
-    return { domain, logged, login, logout, token, getLatestMeasure }
+    return {
+      domain,
+      logged,
+      login,
+      logout,
+      token,
+      getLatestMeasures,
+      getSmartplugsList,
+      getSmartplugMeasures,
+    }
   },
   {
     persist: true,

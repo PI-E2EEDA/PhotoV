@@ -11,7 +11,7 @@ const offset = ref(0)
 const measures: Ref<Measure[]> = ref([])
 
 async function reloadMeasures() {
-  measures.value = await api.getLatestMeasure(type.value, ascending.value, limit.value, offset.value)
+  measures.value = await api.getLatestMeasures(type.value, ascending.value, limit.value, offset.value)
 }
 onMounted(async () => {
   await reloadMeasures()

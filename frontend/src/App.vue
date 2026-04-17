@@ -14,6 +14,7 @@ const api = useApiStore()
 
       <nav class="flex gap-3 items-center">
         <RouterLink to="/">Home</RouterLink>
+        <RouterLink to="/smartplugs">Smartplugs</RouterLink>
         <RouterLink v-if="!api.logged" to="/login">Login</RouterLink>
         <RouterLink to="/about">About</RouterLink>
         <a v-if="api.logged" @click="api.logout()">Logout</a>
