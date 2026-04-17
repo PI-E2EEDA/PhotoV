@@ -525,20 +525,21 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   }
   smartplugs = {
     /**
-     * @description Create a new smartplug with a name
+     * @description Get list of smartplugs for the installation
      *
-     * @name CreateSmartplugSmartplugsPost
-     * @summary Create Smartplug
-     * @request POST:/smartplugs/
+     * @name GetSmartplugsSmartplugsInstallationIdGet
+     * @summary Get Smartplugs
+     * @request GET:/smartplugs/{installation_id}/
      * @secure
      */
-    createSmartplugSmartplugsPost: (data: SmartPlug, params: RequestParams = {}) =>
-      this.request<any, HTTPValidationError>({
-        path: `/smartplugs/`,
-        method: 'POST',
-        body: data,
+    getSmartplugsSmartplugsInstallationIdGet: (
+      installationId: number,
+      params: RequestParams = {},
+    ) =>
+      this.request<SmartPlug[], HTTPValidationError>({
+        path: `/smartplugs/${installationId}/`,
+        method: 'GET',
         secure: true,
-        type: ContentType.Json,
         format: 'json',
         ...params,
       }),
@@ -558,6 +559,46 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     ) =>
       this.request<any, HTTPValidationError>({
         path: `/smartplugs/${installationId}/`,
+        method: 'POST',
+        body: data,
+        secure: true,
+        type: ContentType.Json,
+        format: 'json',
+        ...params,
+      }),
+
+    /**
+     * @description Get measures for given smartplug for the given installation
+     *
+     * @name GetSmartplugMeasuresSmartplugsInstallationIdSmartplugIdGet
+     * @summary Get Smartplug Measures
+     * @request GET:/smartplugs/{installation_id}/{smartplug_id}
+     * @secure
+     */
+    getSmartplugMeasuresSmartplugsInstallationIdSmartplugIdGet: (
+      installationId: number,
+      smartplugId: number,
+      params: RequestParams = {},
+    ) =>
+      this.request<SmartPlugMeasure[], HTTPValidationError>({
+        path: `/smartplugs/${installationId}/${smartplugId}`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+        ...params,
+      }),
+
+    /**
+     * @description Create a new smartplug with a name
+     *
+     * @name CreateSmartplugSmartplugsPost
+     * @summary Create Smartplug
+     * @request POST:/smartplugs/
+     * @secure
+     */
+    createSmartplugSmartplugsPost: (data: SmartPlug, params: RequestParams = {}) =>
+      this.request<any, HTTPValidationError>({
+        path: `/smartplugs/`,
         method: 'POST',
         body: data,
         secure: true,
