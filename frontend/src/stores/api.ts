@@ -54,6 +54,17 @@ export const useApiStore = defineStore(
       logged.value = false
     }
 
+    async function createSmartplug(name: string, installation_id: number): Promise<boolean> {
+      const api = getApi()
+      try {
+        const result = await api.smartplugs.createSmartplugSmartplugsPost({ name, installation_id })
+        return result.ok
+      } catch (e) {
+        alert(e)
+        return false
+      }
+    }
+
     async function getLatestMeasures(
       type: MeasureType,
       ascending: boolean = false,
@@ -121,6 +132,7 @@ export const useApiStore = defineStore(
       getLatestMeasures,
       getSmartplugsList,
       getSmartplugMeasures,
+      createSmartplug,
     }
   },
   {

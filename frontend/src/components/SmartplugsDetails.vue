@@ -7,14 +7,28 @@ const smartplugs: Ref<SmartPlug[]> = ref([])
 const selected_smartplug_id: Ref<null | number> = ref(null)
 const measures_of_selected_smartplug: Ref<SmartPlugMeasure[]> = ref([])
 onMounted(async () => {
-  smartplugs.value = await api.getSmartplugsList(1)
+  reloadSmartplugs()
 })
+async function reloadSmartplugs() {
+  smartplugs.value = await api.getSmartplugsList(1)
+}
 
 watch(selected_smartplug_id, async () => {
   if (selected_smartplug_id.value) {
     measures_of_selected_smartplug.value = await api.getSmartplugMeasures(1, selected_smartplug_id.value)
   }
 })
+
+async function createSmartplug() {
+  const name = prompt("What is the name of the smartplug ?")
+  if (!name || name.trim().length == 0) return
+  const response = confirm("Can you confirm you want to create a new smartplug named '" + name + "' for installation 1 ?")
+  if (response) {
+    if (await api.createSmartplug(name, 1)) {
+      reloadSmartplugs()
+    }
+  }
+}
 
 
 import {
@@ -86,6 +100,8 @@ const chartOptions = {
           </tr>
         </tbody>
       </table>
+
+      <button @click="createSmartplug">Create new smartplug</button>
     </div>
 
     <div class="min-h-72 w-full h-full flex items-center justify-center border border-gray-300">
