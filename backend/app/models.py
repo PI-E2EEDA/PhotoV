@@ -23,6 +23,7 @@ class SmartPlugMeasure(SQLModel, table=True):
     time: datetime  # stored in local time, like SolarEdge !
     value: float  # in Watt
     smartplug_id: int | None = Field(default=None, foreign_key="smartplug.id")
+    __table_args__ = (UniqueConstraint("time", "smartplug_id"),)
 
 
 # Join tables to give access to some users to some installations
@@ -32,6 +33,7 @@ class UserInstallationLink(SQLModel, table=True):
     # we have to manually create foreign keys constraint in the generated migrations...
     user_id: int | None = Field(default=None, primary_key=True)
     installation_id: int | None = Field(default=None, primary_key=True)
+    __table_args__ = (UniqueConstraint("user_id", "installation_id"),)
 
 
 # Any solar installation
