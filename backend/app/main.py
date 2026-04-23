@@ -1,7 +1,7 @@
 from typing import Annotated
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from fastapi import Depends, FastAPI, HTTPException
-from sqlmodel import asc, desc, select, insert
+from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -28,6 +28,9 @@ origins = [
 PHOTOV_DOMAIN = os.environ.get("PHOTOV_DOMAIN")
 if PHOTOV_DOMAIN is not None:
     origins.append("https://" + PHOTOV_DOMAIN)
+
+# If a time is 15 seconds more than the current local time, it is considered to be in the future (and not acceptable for the past)
+FUTURE_CONSIDERATION_MARGIN = 15
 
 app.add_middleware(
     CORSMiddleware,
@@ -205,7 +208,7 @@ async def create_smartplug(
 
 @app.post(
     "/smartplugs/{installation_id}/",
-    description="Send one power measure from a given smart-plug",
+    description="Send one power measure from a given smart-plug. Dates must be in local time !",
 )
 async def send_smartplug_measure(
     session: SessionDep,
@@ -232,8 +235,17 @@ async def send_smartplug_measure(
     measure.id = None
     measure.time = datetime.fromisoformat(str(measure.time))
 
-    if measure.time > datetime.now():
-        raise HTTPException(status_code=400, detail="Time cannot be in the future")
+    # We want to receive local time (usually UTC+02 in Summer) and make sure it is not in the future...
+    # See docs https://fintechpython.pages.oit.duke.edu/jupyternotebooks/1-Core%20Python/answers/rq-28-answers.html
+    # FIXME: use the timezone of the installation (new field is required), instead of hardcoding a shift of UTC+02
+    tzinfo = timezone(timedelta(hours=2))
+    measure_timestamp = measure.time.timestamp()
+    now_localtime = datetime.now(tzinfo)
+    if measure_timestamp > now_localtime.timestamp() + FUTURE_CONSIDERATION_MARGIN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Time cannot be in the future. The 'local' time of UTC+02 considered on the server is {now_localtime} and the request provided time {measure.time}. This means an advance of {measure_timestamp - now_localtime.timestamp()} seconds. The server has a +{FUTURE_CONSIDERATION_MARGIN} seconds margin in the future.",
+        )
 
     if measure.value < 0:
         raise HTTPException(status_code=400, detail="Value cannot be negative")
