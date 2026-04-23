@@ -1,3 +1,23 @@
+# Data acquisition
+
+This file explains all the approach to configure the data acquisition system to  acquire power consumption from multiple [ESPHome Wifi plugs in Swiss format](https://www.swiss-domotique.ch/en/wall-plugs/esphome-wifi-plug-in-swiss-format#ets-rv-product-comments-list-header) such as a raspberry, for example.
+
+## Install the requirements on the data acquistion computer
+
+Install `nmap`:
+
+```bash
+sudo apt update && sudo apt install nmap
+```
+
+Install `uv` (the python env manager) :
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+## Configure the connection to the smartplugs
+
 1. Plug the smart plug in
 2. If this is the first time or if the network that was configured is no longer available. Connect your phone et computer to the Wi-FI hotspot "Swiss-Domotique_XXXX", wait several seconds and select a wifi and enter the password
 3. The smart plug is now connected to the network. You need to retrieve his IP adress by using this command : `nmap -p 6053 XXX.XXX.XXX.XXX/24`. (The port 6053 is the default port for this devices). Check all the adresses listed and the right adress is where the state is `OPEN`. For example, we obtained this :
@@ -67,3 +87,15 @@
     - use the service which send the measurement to the API in the "service" folder
     - create your own script to retrieve the power with the [Python Client for ESPHome native API](https://github.com/esphome/aioesphomeapi). There is no documentation about the API, but you can check the code here to see the available methods of this API : [link](https://github.com/esphome/aioesphomeapi/blob/main/aioesphomeapi/client.py#L252)
 
+## Run the acquisition service
+
+Install the correct python version and the packages for the data acquisition service :
+
+```bash
+uv sync
+```
+
+Run the service from the `data-acquisition` folder :
+```bash
+uv run service/acquire.py
+```
