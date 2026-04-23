@@ -255,10 +255,11 @@ async def send_smartplug_measure(
 
     # We want to receive local time (usually UTC+02 in Summer) and make sure it is not in the future...
     # See docs https://fintechpython.pages.oit.duke.edu/jupyternotebooks/1-Core%20Python/answers/rq-28-answers.html
-    # FIXME: use the timezone of the installation (new field is required), instead of hardcoding a shift of UTC+02
-    tzinfo = timezone(timedelta(hours=2))
+    # Note: timestamps do not consider timezone ! we have to manually add 2 hours to make sure comparing timestamps work.
+    # We compare timestamps not datetime to avoid "TypeError: can't compare offset-naive and offset-aware datetimes"
+    # FIXME: that's a temporary hack, refactor to use the timezone of the installation (new field is required), instead of hardcoding a shift of UTC+02
     measure_timestamp = measure.time.timestamp()
-    now_localtime = datetime.now(tzinfo)
+    now_localtime = datetime.now() + timedelta(hours=2)
     if measure_timestamp > now_localtime.timestamp() + FUTURE_CONSIDERATION_MARGIN:
         raise HTTPException(
             status_code=400,
