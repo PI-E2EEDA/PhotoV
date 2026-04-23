@@ -54,7 +54,8 @@ def pull_all_history_month_by_month(installation):
     for ran in ranges:
         print(format_date(ran[0]), "->", format_date(ran[1]))
     print(f"There is a total of {len(ranges)} months to import :)")
-    if len(ranges) > MAX_QUERIES_PER_DAY:
+    # We need to check if ther are too many month. Each month has 2 requests and we have 1-2 requests at start.
+    if len(ranges) > (MAX_QUERIES_PER_DAY / 2 - 2):
         print_error(
             f"Error: more than {MAX_QUERIES_PER_DAY} months of imports. This is not supported by this script as the API limits to {MAX_QUERIES_PER_DAY} requests per day."
         )
