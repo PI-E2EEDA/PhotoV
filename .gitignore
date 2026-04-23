@@ -11,3 +11,4 @@ pull.config.json
 *.data
 *.onnx
 *.xml
+*.ipynb
