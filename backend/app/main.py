@@ -262,7 +262,7 @@ async def send_smartplug_measure(
     if measure_timestamp > now_localtime.timestamp() + FUTURE_CONSIDERATION_MARGIN:
         raise HTTPException(
             status_code=400,
-            detail=f"Time cannot be in the future. The 'local' time of UTC+02 considered on the server is {now_localtime} and the request provided time {measure.time}. This means an advance of {measure_timestamp - now_localtime.timestamp()} seconds. The server has a +{FUTURE_CONSIDERATION_MARGIN} seconds margin in the future.",
+            detail=f"Time cannot be in the future. The 'local' time of UTC+02 considered on the server is {now_localtime} (ts {now_localtime.timestamp()}) and the request provided time {measure.time} (ts {measure_timestamp}). This means an advance of {measure_timestamp - now_localtime.timestamp()} seconds. The server has a +{FUTURE_CONSIDERATION_MARGIN} seconds margin in the future.",
         )
 
     if measure.value < 0:
