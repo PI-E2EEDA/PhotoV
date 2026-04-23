@@ -1,0 +1,21 @@
+[Unit]
+Descritption=PhotoV script to acquire smartplugs power data and send them to the PhotoV API
+# Wait for network to be ready before starting (needed to reach smartplugs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# simple = the process started by ExecStart IS the service
+Type=simple
+User=photov
+ExecStart=/home/arnaudmaillard/Master/PI-E2EEDA/PhotoV/data-acquisition/.venv/bin/python service/acquire.py
+Restart=on-failure
+# Wait 10 seconds before restarting to avoid rapid crash loops
+RestartSec=10
+# Send stdout and stderr to journalctl (viewable with: journalctl -u photov-acquisition -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Start the service automatically at boot (when systemctl enable is run and not systemctl start)
+WantedBy=multi-user.target
