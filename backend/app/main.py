@@ -5,6 +5,8 @@ from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 from app.auth import setup_auth_routes
 from app.db import get_session
@@ -55,6 +57,22 @@ async def root():
 current_user_fn = fastapi_users_setup.current_user(
     optional=False, active=True, verified=True
 )
+
+
+# Catch all unhandled exceptions and return their error messages for easier debug when running in production.
+# We don't leaking code information as it is already public.
+@app.exception_handler(Exception)
+async def validation_exception_handler(request: Request, exc: Exception):
+    print(f"REQUEST CRASHED: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "message": (
+                f"Failed method {request.method} at URL {request.url}."
+                f" Exception message is {exc!r}."
+            )
+        },
+    )
 
 
 # Make sure the user can access data from this installation or throw an HTTP exception otherwise
