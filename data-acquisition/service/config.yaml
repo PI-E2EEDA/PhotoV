@@ -1,15 +1,21 @@
 installation_id: 1
-api_base_url: "http://localhost:8000"
-api_token: "rIyLzzS_oWcpy2yr7wBZE9HDGkkjwkLXEiibgAdicas"
-acquisition_interval_seconds: 10
+api_base_url: "https://api.photov.srd.rs"
+api_token: "UrTCKwWMEYzhmjsK4Pc--gsXqqS-O4SPP4ZfvQ2iz5k"
+acquisition_interval_seconds: 10 # time btw 2 acquisitions
+zero_power_threshold_seconds: 60 # time before stopping sending measurements to API when it measures 0W (in seconds)
 
 smartplugs:
-  - id: 1            # id dans la DB
-    ip: "172.20.10.2"
+  - id: 2 # id dans la DB (name : chargeur)
+    ip: "192.168.1.146"
     port: 6053
     power_key: 2391494160
 
-  - id: 2
-    ip: "172.20.10.4"
+  - id: 3 # name : lave-vaiselle (salon)
+    ip: "192.168.1.205"
+    port: 6053
+    power_key: 2391494160
+
+  - id: 4 # name : bouillore (chargeur imprimante)
+    ip: "192.168.1.240"
     port: 6053
     power_key: 2391494160
