@@ -1,5 +1,5 @@
 [Unit]
-Descritption=PhotoV script to acquire smartplugs power data and send them to the PhotoV API
+Description=PhotoV script to acquire smartplugs power data and send them to the PhotoV API
 # Wait for network to be ready before starting (needed to reach smartplugs)
 After=network-online.target
 Wants=network-online.target
@@ -8,7 +8,8 @@ Wants=network-online.target
 # simple = the process started by ExecStart IS the service
 Type=simple
 User=photov
-ExecStart=/home/arnaudmaillard/Master/PI-E2EEDA/PhotoV/data-acquisition/.venv/bin/python service/acquire.py
+WorkingDirectory=/home/photov/Documents/PhotoV/data-acquisition
+ExecStart=/home/photov/Documents/PhotoV/data-acquisition/.venv/bin/python -u service/acquire.py
 Restart=on-failure
 # Wait 10 seconds before restarting to avoid rapid crash loops
 RestartSec=10
