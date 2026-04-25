@@ -62,7 +62,7 @@ services:
     build:
       context: ../backups
       network: host
-    command: ["./backup.sh", "backup"]
+    command: ["backup"] # run the subcommand backup
     restart: always
     environment:
       BACKUPS_INTERVAL_MINUTES: 60
