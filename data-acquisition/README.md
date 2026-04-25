@@ -87,7 +87,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
     - use the service which send the measurement to the API in the "service" folder
     - create your own script to retrieve the power with the [Python Client for ESPHome native API](https://github.com/esphome/aioesphomeapi). There is no documentation about the API, but you can check the code here to see the available methods of this API : [link](https://github.com/esphome/aioesphomeapi/blob/main/aioesphomeapi/client.py#L252)
 
-## Run the acquisition service
+## Run the acquisition service manually
 
 Install the correct python version and the packages for the data acquisition service :
 
@@ -95,7 +95,56 @@ Install the correct python version and the packages for the data acquisition ser
 uv sync
 ```
 
-Run the service from the `data-acquisition` folder :
+Run the service manually from the `data-acquisition` folder :
+
 ```bash
 uv run service/acquire.py
+```
+
+## Install/restart the acquistion service as a systemd service
+
+From the `data-acquisition` folder copy the service file to the `systemd` folder :
+```bash
+sudo cp service/photov-acquisition.service /etc/systemd/system/
+```
+
+Reload services :
+
+```bash
+sudo systemctl daemon-reload
+```
+
+Start the service
+```bash
+sudo systemctl start photov-acquisition
+```
+
+Visualize the journal in `follow` mode and check that it is working : 
+
+```bash
+journalctl -u photov-acquisition -f
+```
+
+Stop the service :
+
+```bash
+sudo systemctl stop photov-acquisition
+```
+
+Start the service and enable it for the next reboots :
+
+```bash
+sudo systemctl enable --now photov-acquisition
+```
+
+**After changing the config, just restart :**
+
+```bash
+sudo systemctl restart photov-acquisition
+```
+
+Check the status :
+
+```bash
+sudo systemctl status photov-acquisition
 ```
