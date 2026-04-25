@@ -1,5 +1,7 @@
 installation_id: 1
 api_base_url: "https://api.photov.srd.rs"
+# NOTE: this token is only for development, make sure to NOT commit the production token
+# and to only change it manually on the raspberry to avoid saving in the repository.
 api_token: "UrTCKwWMEYzhmjsK4Pc--gsXqqS-O4SPP4ZfvQ2iz5k"
 acquisition_interval_seconds: 10 # time btw 2 acquisitions
 zero_power_threshold_seconds: 60 # time before stopping sending measurements to API when it measures 0W (in seconds)
