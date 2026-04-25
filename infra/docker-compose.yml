@@ -54,3 +54,22 @@ services:
     # Only enable this in development !
     # ports:
     #   - "5432:5432"
+
+  # A simple container that does regular backups and allow restoration.
+  # See backups/README.md
+  backups:
+    image: photov/backups
+    build:
+      context: ../backups
+      network: host
+    command: ["./backup.sh", "backup"]
+    restart: always
+    environment:
+      BACKUPS_INTERVAL_MINUTES: 60
+      BACKUPS_FOLDER: "/backups"
+      POSTGRES_PASSWORD: "${DB_PWD}"
+      POSTGRES_USER: photov
+      POSTGRES_DB: photov
+      DB_HOST: db # the other database service hostname
+    volumes:
+      - ./data/backups:/backups
