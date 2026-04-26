@@ -1,5 +1,5 @@
 # See https://docs.astral.sh/uv/guides/integration/docker/
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV UV_NO_DEV=1 \
