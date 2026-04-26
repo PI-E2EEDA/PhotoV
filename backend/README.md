@@ -158,7 +158,7 @@ docker compose exec api sh
 ```
 Inside the api container
 ```
-> uv run -m app.tasks.pull-history pull --installation-id 1
+> uv run -m app.tasks.pull_history pull --installation-id 1
 Using credentials from /creds
 Starting import process for installation id 1
 Installation Home1 was installed on 2020-09-13 00:00:00
@@ -192,7 +192,7 @@ The autodetected installation date is the first date where data was pulled durin
 This simple command `clean` is helping to find, count and remove all the useless entries. Here is the command and a demonstration.
 
 ```
-> uv run -m app.tasks.pull-history clean --installation-id 1
+> uv run -m app.tasks.pull_history clean --installation-id 1
 Using credentials from ../infra/creds
 Between the start measure at 2020-08-22 22:15:00 and the first useful measure at 2020-08-29 13:45:00,
 it founds 4732 entries with all 3 fields to zero.
@@ -202,7 +202,7 @@ Deletion successful !
 
 When running again, it confirms us the operation has worked.
 ```
-> uv run -m app.tasks.pull-history clean --installation-id 1
+> uv run -m app.tasks.pull_history clean --installation-id 1
 Using credentials from ../infra/creds
 No null measures found on the oldest values !
 ```
@@ -211,7 +211,7 @@ No null measures found on the oldest values !
 You can run various coherence checks among the imported data to see what would be missing or what could be wrong.
 
 ```
-> uv run -m app.tasks.pull-history check --installation-id 1
+> uv run -m app.tasks.pull_history check --installation-id 1
 Using credentials from ../infra/creds
 Starting global verification process for import on installation_id 1
 
