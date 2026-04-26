@@ -143,7 +143,7 @@ def import_history_in_given_ranges(
 def import_energy_into_db(
     start, end, client: MonitoringClient, session: Session, site_id, installation_id
 ):
-    print(f"Getting energy data for a month {start} -> {end}")
+    print(f"Getting energy data for {start} -> {end}")
     energy_details = client.get_energy_details(
         site_id=site_id,
         start_time=start,

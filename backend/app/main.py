@@ -1,4 +1,5 @@
 from typing import Annotated
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, FastAPI, HTTPException
 from sqlmodel import asc, desc, select
@@ -19,8 +20,19 @@ from app.models import (
     SmartPlugMeasure,
     SmartPlug,
 )
+from app.tasks.pull import start_background_pulling_at_regular_time
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _ = start_background_pulling_at_regular_time()
+    yield
+    # clean up items
+
+
+app = FastAPI(lifespan=lifespan)
 app = FastAPI()
 
 # Configure CORS to allow any localhost website + the production domain as well.
