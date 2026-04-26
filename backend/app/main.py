@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 import logging
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import text
-from sqlmodel import asc, desc, select, insert
+from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 import os
