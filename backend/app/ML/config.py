@@ -15,6 +15,9 @@ PANEL_ANGLE: float = float(os.environ.get("PV_PANEL_ANGLE", "30.0"))
 PANEL_ORIENTATION: float = float(os.environ.get("PV_PANEL_ORIENTATION", "180.0")) # Remis au Sud par défaut
 PANEL_MANUFACTURER: str = os.environ.get("PV_PANEL_MANUFACTURER", "Generic Manufacturer") # Anonymisé
 PANEL_MODEL: str = os.environ.get("PV_PANEL_MODEL", "Generic 300W") # Anonymisé
+PANEL_COUNT: int = int(os.environ.get("PV_PANEL_COUNT", "29"))
+PANEL_AREA_M2: float = float(os.environ.get("PV_PANEL_AREA_M2", "52.5"))
+PANEL_RATED_POWER_W: float = float(os.environ.get("PV_PANEL_RATED_POWER_W", "375.0"))
 
 # --- Météo ---
 INTERNAL_WEATHER_COLUMNS: list[str] = [
@@ -43,9 +46,25 @@ METEOSWISS_COLUMNS_MAPPING: dict[str, str] = {
 # --- Nouvelles URLs Open Data ---
 METEOSWISS_STAC_URL: str = "https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-local-forecasting/items"
 
-# Valeur par défaut anonymisée (ex: centre de Lausanne) si le .env n'est pas là
-METEOSWISS_POINT_ID: str = os.environ.get("PV_METEOSWISS_POINT_ID", "100000")
+# Typiquement : 1000 avec type 2 = Code postal de Lausanne
+# Point valide (type 2) proche des coordonnees de la maison de reference.
+# A surcharger en prod via .env
+METEOSWISS_POINT_ID: str = os.environ.get("PV_METEOSWISS_POINT_ID", "144100")
+METEOSWISS_POINT_TYPE_ID: int = int(os.environ.get("PV_METEOSWISS_POINT_TYPE_ID", "2"))
 
 # --- Model Configuration ---
 MODELS_DIR: str = os.environ.get("PV_MODELS_DIR", "app/artifacts")
 HORIZON: int = int(os.environ.get("PV_HORIZON", "288")) # 3 days in 15-minute steps
+
+# --- Remote production ingestion (friend server -> local DB) ---
+REMOTE_ENABLED: bool = os.environ.get("PV_REMOTE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+REMOTE_BASE_URL: str = os.environ.get("PV_REMOTE_BASE_URL", "")
+REMOTE_TOKEN: str = os.environ.get("PV_REMOTE_TOKEN", "")
+REMOTE_AUTH_SCHEME: str = os.environ.get("PV_REMOTE_AUTH_SCHEME", "Bearer")
+REMOTE_LOGIN_PATH: str = os.environ.get("PV_REMOTE_LOGIN_PATH", "/auth/login")
+REMOTE_USERNAME: str = os.environ.get("PV_REMOTE_USERNAME", "")
+REMOTE_PASSWORD: str = os.environ.get("PV_REMOTE_PASSWORD", "")
+REMOTE_MEASURES_PATH: str = os.environ.get("PV_REMOTE_MEASURES_PATH", "/api/measurements")
+REMOTE_TIMEOUT_S: int = int(os.environ.get("PV_REMOTE_TIMEOUT_S", "30"))
+REMOTE_WINDOW_MINUTES: int = int(os.environ.get("PV_REMOTE_WINDOW_MINUTES", "180"))
+REMOTE_INSTALLATION_ID: int = int(os.environ.get("PV_REMOTE_INSTALLATION_ID", "1"))

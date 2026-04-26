@@ -3,7 +3,7 @@ from sqlmodel import Field, MetaData, SQLModel, Relationship
 from sqlalchemy import UniqueConstraint
 from enum import Enum
 from fastapi_users.db import SQLAlchemyBaseUserTable
-from sqlalchemy import Integer, ForeignKey
+from sqlalchemy import Integer, ForeignKey, DateTime, Column
 from sqlalchemy.orm import Mapped, mapped_column, declared_attr
 from fastapi_users_db_sqlalchemy.access_token import (
     SQLAlchemyBaseAccessTokenTable,
@@ -43,6 +43,27 @@ class Installation(SQLModel, table=True):
     location: str
     latitude: float
     longitude: float
+    panel_angle: float | None = Field(default=30.0)
+    panel_orientation: float | None = Field(default=157.0)
+    manufacturer: str | None = Field(default=None)
+    model: str | None = Field(default=None)
+
+
+class WeatherForecast(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    target_time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    reference_time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    installation_id: int | None = Field(default=None, foreign_key="installation.id")
+    temperature_2m: float | None = Field(default=None)
+    shortwave_radiation: float | None = Field(default=None)
+    diffuse_radiation: float | None = Field(default=None)
+    precipitation: float | None = Field(default=None)
+    windspeed_10m: float | None = Field(default=None)
+    cloudcover_high: float | None = Field(default=None)
+    cloudcover_medium: float | None = Field(default=None)
+    cloudcover_low: float | None = Field(default=None)
+
+    __table_args__ = (UniqueConstraint("installation_id", "target_time", "reference_time"),)
 
 
 class MeasureType(Enum):
@@ -56,7 +77,7 @@ class MeasureType(Enum):
 class Measure(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     type: MeasureType
-    time: datetime
+    time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     installation_id: int | None = Field(default=None, foreign_key="installation.id")
     solar_production: float
     solar_consumption: float

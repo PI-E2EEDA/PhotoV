@@ -1,17 +1,20 @@
 from typing import Annotated
-import asyncio
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
-from sqlmodel import asc, desc, select
+import logging
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import text
+from sqlmodel import asc, desc, select, insert
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from contextlib import asynccontextmanager
 from app.auth import setup_auth_routes
 from app.db import get_session
+from app.ML.scheduler import start_scheduler, stop_scheduler, get_scheduler_health
+from app.ML.remote_production_ingestion import get_remote_ingestion_health
 from app.models import (
     Installation,
     Measure,
@@ -23,25 +26,17 @@ from app.models import (
 )
 from app.tasks.pull import start_background_pulling_at_regular_time, log
 
+LOGGER = logging.getLogger(__name__)
+
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
-
-def handle_task_result(task: asyncio.Task):
-    exc = task.exception()
-    if exc:
-        log(f"Exception in background task {exc}")
-
-
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    print("Starting background task for pulling !")
-    log("Log: Starting background task for pulling !")
-    task = asyncio.create_task(start_background_pulling_at_regular_time())
-    task.add_done_callback(handle_task_result)
-    print("Background task started !")
+async def lifespan(app: FastAPI):
+    LOGGER.info("Démarrage du Scheduler ML...")
+    start_scheduler()
     yield
-    task.cancel()
-
+    LOGGER.info("Arrêt du Scheduler ML...")
+    stop_scheduler()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -222,6 +217,27 @@ async def get_smartplug_measures(
     )
     results = await session.execute(stmt)  # ignore this warning
     return results.scalars().all()
+
+
+@app.get("/ml/ingestion/health", tags=["ml"], description="Diagnostic scheduler + DB sans shell")
+async def get_ml_ingestion_health(session: SessionDep):
+    db_status = "ok"
+    db_error = None
+    try:
+        await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        db_status = "error"
+        db_error = str(exc)
+
+    scheduler_health = get_scheduler_health()
+    remote_ingestion_health = get_remote_ingestion_health()
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "database": {"status": db_status, "error": db_error},
+        "scheduler": scheduler_health,
+        "remote_ingestion": remote_ingestion_health,
+    }
 
 
 @app.post(

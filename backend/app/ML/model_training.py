@@ -28,6 +28,7 @@ DEFAULT_LGBM_PARAMS: dict[str, Any] = {
     "learning_rate": 0.08,
     "n_estimators": 400,
     "min_child_samples": 20,
+    "verbosity": -1,
     "random_state": 42,
     "n_jobs": -1,
 }
@@ -41,7 +42,12 @@ def _prepare_training_data(df: pd.DataFrame, target_col: str) -> tuple[pd.Series
     numeric_df = df.select_dtypes(include=[np.number]).copy()
     exog_cols = [col for col in numeric_df.columns if col != target_col]
     cols_to_check = [target_col] + exog_cols
-    prepared = numeric_df[cols_to_check].dropna()
+    prepared = numeric_df[cols_to_check].sort_index()
+    prepared = prepared[~prepared.index.duplicated(keep="last")]
+
+    # skforecast expects a DatetimeIndex with an explicit frequency.
+    prepared = prepared.asfreq("15min")
+    prepared = prepared.dropna()
 
     if len(prepared) < 300:
         raise ValueError("Not enough rows after dropping NaNs to train robustly.")
@@ -84,6 +90,7 @@ def optimize_hyperparameters(
             "learning_rate": trial.suggest_float("learning_rate", 0.03, 0.2),
             "n_estimators": trial.suggest_int("n_estimators", 200, 600),
             "min_child_samples": trial.suggest_int("min_child_samples", 10, 50),
+            "verbosity": -1,
             "random_state": 42,
             "n_jobs": -1,
         }
@@ -137,6 +144,7 @@ def run_training_pipeline(
     df: pd.DataFrame,
     output_dir: str = MODELS_DIR,
     optimize: bool = True,
+    optuna_trials: int = 20,
 ) -> dict[str, Any]:
     """Run full training workflow for production and consumption models."""
     # On n'ajoute plus is_holiday ici, on suppose que df est déjà passé par build_features()
@@ -156,7 +164,7 @@ def run_training_pipeline(
                 forecaster=forecasters[model_name],
                 df=df,
                 target_col=target_col,
-                n_trials=20, # 20 est suffisant pour LightGBM
+                n_trials=optuna_trials,
             )
             best_params[model_name] = best
             forecasters[model_name].regressor.set_params(**best)

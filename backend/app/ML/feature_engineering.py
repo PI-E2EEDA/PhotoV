@@ -12,7 +12,8 @@ from pvlib.irradiance import get_total_irradiance
 from .config import (
     ALTITUDE_M, LATITUDE, LONGITUDE,
     INTERNAL_WEATHER_COLUMNS,
-    PANEL_ANGLE, PANEL_ORIENTATION
+    PANEL_ANGLE, PANEL_ORIENTATION,
+    PANEL_COUNT, PANEL_AREA_M2, PANEL_RATED_POWER_W,
 )
 
 EXPECTED_WEATHER_COLUMNS = INTERNAL_WEATHER_COLUMNS
@@ -166,6 +167,19 @@ def add_weather_interactions(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def add_installation_static_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add static installation metadata as model features."""
+    out = df.copy()
+    out["panel_count"] = float(PANEL_COUNT)
+    out["panel_area_m2"] = float(PANEL_AREA_M2)
+    out["pv_nominal_kw"] = float(PANEL_COUNT * PANEL_RATED_POWER_W) / 1000.0
+
+    if "poa_global_radiation" in out.columns:
+        out["poa_x_panel_area"] = out["poa_global_radiation"] * float(PANEL_AREA_M2)
+
+    return out
+
+
 def build_features(
         df: pd.DataFrame,
         lag_columns: Optional[list[str]] = None,
@@ -180,6 +194,7 @@ def build_features(
     out = add_time_features(out)
     out = add_solar_features(out)
     out = add_weather_interactions(out)
+    out = add_installation_static_features(out)
 
     if lag_columns is None:
         # On privilégie notre nouvelle super feature POA pour les lags !

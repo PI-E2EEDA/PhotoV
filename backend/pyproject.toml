@@ -24,4 +24,5 @@ dependencies = [
     "solaredge>=1.1.1",
     "sqlmodel>=0.0.37",
     "termcolor>=3.3.0",
+    "aiohttp>=3.13.5",
 ]

@@ -1,21 +1,41 @@
 from __future__ import annotations
 
-import asyncio
-from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime, timezone
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from ..core.db_services import save_current_weather
+from .data_pipeline import fetch_and_store_weather, fetch_and_store_weather_forecast
 from .inference import refresh_predictions_task
+from .remote_production_ingestion import pull_remote_production_into_db
+from ..db import async_session_maker
 
-from ..db import get_session
+SCHEDULER = AsyncIOScheduler(timezone="UTC")
 
-SCHEDULER = BackgroundScheduler(timezone="UTC")
 
-def _run_async_db_task():
-    async def _do_work():
-        async for session in get_session():
-            await save_current_weather(session)
-            break
-    asyncio.run(_do_work())
+async def _run_async_db_task():
+    async with async_session_maker() as session:
+        await pull_remote_production_into_db(session)
+        await fetch_and_store_weather(session)
+        await fetch_and_store_weather_forecast(session)
+
+
+def get_scheduler_health() -> dict:
+    jobs = []
+    for job in SCHEDULER.get_jobs():
+        jobs.append(
+            {
+                "id": job.id,
+                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+                "trigger": str(job.trigger),
+            }
+        )
+
+    return {
+        "running": bool(SCHEDULER.running),
+        "timezone": "UTC",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "jobs": jobs,
+    }
+
 
 def start_scheduler() -> None:
     if SCHEDULER.running:
@@ -32,11 +52,12 @@ def start_scheduler() -> None:
     SCHEDULER.add_job(
         _run_async_db_task,
         trigger="cron",
-        minute=10,
+        minute="0",
         id="hourly_weather_history",
         replace_existing=True,
     )
     SCHEDULER.start()
+
 
 def stop_scheduler() -> None:
     if SCHEDULER.running:
