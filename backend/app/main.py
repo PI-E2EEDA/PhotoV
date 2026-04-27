@@ -15,6 +15,7 @@ from app.auth import setup_auth_routes
 from app.db import get_session
 from app.ML.scheduler import start_scheduler, stop_scheduler, get_scheduler_health
 from app.ML.remote_production_ingestion import get_remote_ingestion_health
+from app.ML.inference import build_prediction_response, get_best_slot
 from app.models import (
     Installation,
     Measure,
@@ -23,8 +24,10 @@ from app.models import (
     UserInstallationLink,
     SmartPlugMeasure,
     SmartPlug,
+    WeatherHistory,
 )
-from app.tasks.pull import start_background_pulling_at_regular_time, log
+from app.schemas.ml_health import MLIngestionHealthResponse
+from app.schemas.prediction import PredictionResponse, BestSlotResponse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -219,7 +222,12 @@ async def get_smartplug_measures(
     return results.scalars().all()
 
 
-@app.get("/ml/ingestion/health", tags=["ml"], description="Diagnostic scheduler + DB sans shell")
+@app.get(
+    "/ml/ingestion/health",
+    response_model=MLIngestionHealthResponse,
+    tags=["ml"],
+    description="Diagnostic scheduler + DB sans shell",
+)
 async def get_ml_ingestion_health(session: SessionDep):
     db_status = "ok"
     db_error = None
@@ -231,13 +239,68 @@ async def get_ml_ingestion_health(session: SessionDep):
 
     scheduler_health = get_scheduler_health()
     remote_ingestion_health = get_remote_ingestion_health()
-    return {
-        "status": "ok" if db_status == "ok" else "degraded",
-        "checked_at": datetime.now(timezone.utc).isoformat(),
-        "database": {"status": db_status, "error": db_error},
-        "scheduler": scheduler_health,
-        "remote_ingestion": remote_ingestion_health,
+
+    # Normalize scheduler_health and remote_ingestion_health into simple dicts
+    def _to_dict(obj):
+        if obj is None:
+            return {}
+        if isinstance(obj, dict):
+            return obj
+        try:
+            return dict(obj)
+        except Exception:
+            try:
+                return obj.__dict__
+            except Exception:
+                return {}
+
+    s = _to_dict(scheduler_health)
+    r = _to_dict(remote_ingestion_health)
+
+    scheduler_obj = {
+        "running": bool(s.get("running") or s.get("is_running") or False),
+        "last_run_iso": s.get("last_run") or s.get("last_run_iso"),
+        "next_run_iso": s.get("next_run") or s.get("next_run_iso"),
     }
+
+    remote_obj = {
+        "enabled": bool(r.get("enabled") or r.get("is_enabled") or False),
+        "last_sync_iso": r.get("last_sync") or r.get("last_sync_iso"),
+        "last_error": r.get("last_error") or r.get("error"),
+    }
+
+    return MLIngestionHealthResponse(
+        status=("ok" if db_status == "ok" else "degraded"),
+        checked_at=datetime.now(timezone.utc),
+        database={"status": db_status, "error": db_error},
+        scheduler=scheduler_obj,
+        remote_ingestion=remote_obj,
+    )
+
+
+@app.get("/ml/predictions", response_model=PredictionResponse, tags=["ml"], description="Get current predictions")
+async def api_get_predictions():
+    """Return current predictions (generated on demand)."""
+    return build_prediction_response()
+
+
+@app.get("/ml/best-slot", response_model=BestSlotResponse, tags=["ml"], description="Get best time slot based on predictions")
+async def api_get_best_slot(duration_minutes: int = 60):
+    return get_best_slot(duration_minutes=duration_minutes)
+
+
+@app.get(
+    "/weather/history/{point_id}",
+    description="Get weather history for point",
+    response_model=list[WeatherHistory],
+    tags=["weather"],
+)
+async def get_weather_history(point_id: str, session: SessionDep, limit: int = 1000, offset: int = 0, ascending: bool = False, user: User = Depends(current_user_fn)):
+    stmt = select(WeatherHistory).where(WeatherHistory.point_id == point_id).order_by(asc(WeatherHistory.time) if ascending else desc(WeatherHistory.time)).offset(offset)
+    if limit > 0:
+        stmt = stmt.limit(limit)
+    results = await session.execute(stmt)
+    return results.scalars().all()
 
 
 @app.post(
