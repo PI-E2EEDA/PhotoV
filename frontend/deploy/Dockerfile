@@ -1,5 +1,5 @@
 FROM fedora:43 AS frontendbuild
-RUN dnf install -y git wget pnpm
+RUN dnf install -y git wget pnpm && dnf clean all
 WORKDIR /frontend
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /frontend/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
