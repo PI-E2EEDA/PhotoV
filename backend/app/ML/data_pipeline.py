@@ -161,11 +161,19 @@ def build_dataset(source: str = "realtime") -> pd.DataFrame:
         raise ValueError(f"Source inconnue: {source}")
 
 async def fetch_and_store_weather(session: AsyncSession):
-    """Fetches meteoswiss data and stores it in Postgres for the point ID."""
+    """Fetches meteoswiss data and stores it in Postgres for the point ID (HISTORICAL data only, <= now)."""
+    from datetime import datetime, timezone
     LOGGER.info(f"Début fetch_and_store_weather (History) pour ID {METEOSWISS_POINT_ID} type {METEOSWISS_POINT_TYPE_ID}")
     df = await _fetch_all_meteoswiss_data_async(METEOSWISS_POINT_ID, METEOSWISS_POINT_TYPE_ID)
     if df.empty:
         LOGGER.warning("Aucune donnée historique trouvée.")
+        return
+
+    # Filter to keep only past data (timestamp <= now)
+    now = pd.Timestamp.now(tz="UTC")
+    df = df[df.index <= now].copy()
+    if df.empty:
+        LOGGER.info("Aucune donnée historique après filtre (tout est du futur).")
         return
     
     df = df.reset_index()
@@ -199,10 +207,10 @@ async def fetch_and_store_weather(session: AsyncSession):
         )
         await session.execute(stmt)
         await session.commit()
-        LOGGER.info(f"Fin fetch_and_store_weather (History): {len(records)} lignes traitées.")
+        LOGGER.info(f"Fin fetch_and_store_weather (History): {len(records)} lignes traitées (historique uniquement).")
 
 async def fetch_and_store_weather_forecast(session: AsyncSession):
-    """Fetches meteoswiss data and stores it in Postgres as WeatherForecast for all installations."""
+    """Fetches meteoswiss data and stores it in Postgres as WeatherForecast for all installations (FUTURE data only, > now)."""
     from app.models import Installation, WeatherForecast
     from sqlalchemy import select
     from datetime import datetime, timezone
@@ -222,6 +230,13 @@ async def fetch_and_store_weather_forecast(session: AsyncSession):
     df = await _fetch_all_meteoswiss_data_async(METEOSWISS_POINT_ID, METEOSWISS_POINT_TYPE_ID)
     if df.empty:
         LOGGER.warning("Données prévisionnelles vides.")
+        return
+
+    # Filter to keep only future data (timestamp > now)
+    now = pd.Timestamp.now(tz="UTC")
+    df = df[df.index > now].copy()
+    if df.empty:
+        LOGGER.info("Aucune donnée prévisionnelle après filtre (tout est du passé).")
         return
 
     df = df.reset_index()
@@ -258,4 +273,4 @@ async def fetch_and_store_weather_forecast(session: AsyncSession):
         )
         await session.execute(stmt)
         await session.commit()
-        LOGGER.info(f"Fin fetch_and_store_weather_forecast: {len(records)} prévisions insérées pour {len(installations)} installation(s).")
+        LOGGER.info(f"Fin fetch_and_store_weather_forecast: {len(records)} prévisions insérées pour {len(installations)} installation(s) (futur uniquement).")

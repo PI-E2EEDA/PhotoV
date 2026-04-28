@@ -228,7 +228,8 @@ async def get_smartplug_measures(
     tags=["ml"],
     description="Diagnostic scheduler + DB sans shell",
 )
-async def get_ml_ingestion_health(session: SessionDep):
+async def get_ml_ingestion_health(session: SessionDep, user: User = Depends(current_user_fn)):
+
     db_status = "ok"
     db_error = None
     try:
