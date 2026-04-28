@@ -27,8 +27,8 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # background_tasks = BackgroundTasks()
-    # background_tasks.add_task(start_background_pulling_at_regular_time)
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(start_background_pulling_at_regular_time)
     yield
     # clean up items
 
