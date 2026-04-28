@@ -71,7 +71,7 @@ async def start_background_pulling_at_regular_time():
 # but also need to support loading more data in case of API downtime.
 async def pull_latest_missing_measures(client, session, installation):
     print(
-        f"Pulling latest missing measures for installation id: {installation.installation_id}"
+        f"Pulling latest missing measures for installation id: {installation['installation_id']}"
     )
     count = 0
     # Take the last power and energy measures to retrieve values only from this time and avoid collision with existing data in DB.
@@ -119,7 +119,9 @@ async def pull_latest_missing_measures(client, session, installation):
         site_id=installation["solaredge_site_id"],
         installation_id=installation["installation_id"],
     )
-    print(f"Pulling {count} measures for installation {installation.installation_id}")
+    print(
+        f"Pulling {count} measures for installation {installation['installation_id']}"
+    )
 
 
 # Import energy data from SolarEdge API into our database in the measure table.
