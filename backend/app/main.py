@@ -1,7 +1,7 @@
 from typing import Annotated
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
 from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,8 +26,9 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    await start_background_pulling_at_regular_time()
+async def lifespan(_: FastAPI):
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(start_background_pulling_at_regular_time)
     yield
     # clean up items
 
