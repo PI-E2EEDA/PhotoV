@@ -20,15 +20,18 @@ from app.models import (
     SmartPlugMeasure,
     SmartPlug,
 )
-from app.tasks.pull import start_background_pulling_at_regular_time
+from app.tasks.pull import start_background_pulling_at_regular_time, log
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    print("Starting background task for pulling !")
+    log("Log: Starting background task for pulling !")
     background_tasks = BackgroundTasks()
     background_tasks.add_task(start_background_pulling_at_regular_time)
+    print("Background tasks sarted !")
     yield
     # clean up items
 

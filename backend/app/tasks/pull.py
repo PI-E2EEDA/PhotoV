@@ -20,7 +20,7 @@ MAX_QUERIES_PER_DAY = 300
 
 
 def log(message: str):
-    with open("pull.logs.txt", mode="a") as log:
+    with open("/app/pull.logs.txt", mode="a") as log:
         log.write(message)
 
 
