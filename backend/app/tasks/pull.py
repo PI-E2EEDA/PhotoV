@@ -21,7 +21,7 @@ MAX_QUERIES_PER_DAY = 300
 
 def log(message: str):
     with open("/app/pull.logs.txt", mode="a") as log:
-        log.write(message)
+        log.write(message + "\n")
 
 
 # We want to pull the latest measures every quarter of an hour, right after a quarter was done.
