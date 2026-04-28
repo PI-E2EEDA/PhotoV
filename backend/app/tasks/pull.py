@@ -116,7 +116,8 @@ async def pull_latest_missing_measures(client, installation):
 
         # As the SolarEdge API is rounding values to the quarter of an hour, we can just -15minutes to make sure we only retrieve complete quarters and ignore the current one.
         # If we are 15:17, it will be 15:02, which is rounded to 15:00. If it is 13:45, it will be 13:30 which is what we want.
-        end = now - timedelta(minutes=15)
+        end = now - timedelta(minutes=15) + timedelta(hours=2)  # we also in UTC+02
+        # FIXME: fix the UTC+02 mess
 
         await import_power_into_db(
             start=latest_power.time
