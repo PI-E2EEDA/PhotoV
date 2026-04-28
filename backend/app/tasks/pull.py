@@ -44,11 +44,10 @@ async def start_background_pulling_at_regular_time():
 
         # If we are not an ideal time, we need to wait a bit more
         if now.minute not in IDEAL_MINUTES:
-            for idx, t in enumerate(IDEAL_MINUTES):
-                if now.minute > t:
-                    sleep_time_until_next_ideal_time = (
-                        IDEAL_MINUTES[idx + 1] - now.minute
-                    )
+            for ideal_minute in IDEAL_MINUTES:
+                # The first ideal minute that is above current minute, is the next one
+                if now.minute < ideal_minute:
+                    sleep_time_until_next_ideal_time = ideal_minute - now.minute
                     print(
                         f"Going to sleep for {sleep_time_until_next_ideal_time} minutes until the next ideal time."
                     )
