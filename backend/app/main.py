@@ -27,13 +27,12 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _ = start_background_pulling_at_regular_time()
+    await start_background_pulling_at_regular_time()
     yield
     # clean up items
 
 
 app = FastAPI(lifespan=lifespan)
-app = FastAPI()
 
 # Configure CORS to allow any localhost website + the production domain as well.
 origins = [
