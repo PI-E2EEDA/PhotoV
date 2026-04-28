@@ -1,6 +1,7 @@
 # Task to regularly pull latest data from SolarEdge API for the credentials stored in pull.config.json
 import json
 from datetime import timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import asc, desc, select
 import asyncio
 from datetime import datetime
@@ -36,7 +37,6 @@ async def start_background_pulling_at_regular_time():
     IDEAL_MINUTES = [1, 16, 31, 46, 61]
     log("Starting background process for regular pull")
 
-    session = get_async_session()
     while True:
         now = datetime.now()
         if now.hour >= STOP_START_HOUR_INDEX and now.hour < STOP_END_HOUR_INDEX:
@@ -72,7 +72,7 @@ async def start_background_pulling_at_regular_time():
         installations = load_pull_config()
         for ins in installations:
             client = setup_api_client(ins)
-            await pull_latest_missing_measures(client, session, ins)
+            await pull_latest_missing_measures(client, ins)
 
         # Make sure that we sleep at least for INTERVAL_M
         await asyncio.sleep(INTERVAL_M * 60)
@@ -81,12 +81,13 @@ async def start_background_pulling_at_regular_time():
 # By looking at the database to see how much data is missing, it will get the latest measure time
 # and pull all missing measures from SolarEdge. This is meant to be run frequently (like every hour)
 # but also need to support loading more data in case of API downtime.
-async def pull_latest_missing_measures(client, session, installation):
+async def pull_latest_missing_measures(client, installation):
     log(
         f"Pulling latest missing measures for installation id: {installation['installation_id']}"
     )
     count = 0
     # Take the last power and energy measures to retrieve values only from this time and avoid collision with existing data in DB.
+
     stmt = (
         select(Measure)
         .where(Measure.installation_id == installation["installation_id"])
@@ -96,49 +97,62 @@ async def pull_latest_missing_measures(client, session, installation):
         )  # to make sure a consistent order of "power then energy" (this is the order of the postgres enum)
         .limit(2)  # energy + power
     )
-    results = await session.execute(stmt)  # ignore this warning
-    items = results.scalars().all()
-    if len(items) < 2:
-        log(
-            "Error: latest measures not found. You need to pull the whole history with the pull_history script first !"
-        )
-        return
-    latest_power: Measure = items[0]
-    latest_energy: Measure = items[1]
-    now = datetime.now()
-    if (latest_power.time - datetime.now()).days >= 30:
-        log(
-            "Error: data is missing since earlier than a month and the pull script doesn't support it. Fix the script."
-        )
-        return
+    async for session in get_async_session():
+        results = await session.execute(stmt)  # ignore this warning
+        items = results.scalars().all()
+        if len(items) < 2:
+            log(
+                "Error: latest measures not found. You need to pull the whole history with the pull_history script first !"
+            )
+            return
+        latest_power: Measure = items[0]
+        latest_energy: Measure = items[1]
+        now = datetime.now()
+        if (latest_power.time - datetime.now()).days >= 30 or (
+            latest_energy.time - datetime.now()
+        ).days >= 30:
+            log(
+                "Error: data is missing since earlier than a month and the pull script doesn't support it. Fix the script."
+            )
+            return
 
-    # As the SolarEdge API is rounding values to the quarter of an hour, we can just -15minutes to make sure we only retrieve complete quarters and ignore the current one.
-    # If we are 15:17, it will be 15:02, which is rounded to 15:00. If it is 13:45, it will be 13:30 which is what we want.
-    end = now - timedelta(minutes=15)
-    import_power_into_db(
-        start=latest_power.time + timedelta(minutes=15),  # skip the existing quarter
-        end=end,
-        client=client,
-        session=session,
-        site_id=installation["solaredge_site_id"],
-        installation_id=installation["installation_id"],
-    )
-    import_energy_into_db(
-        start=latest_energy.time + timedelta(minutes=15),  # skip the existing quarter
-        end=end,
-        client=client,
-        session=session,
-        site_id=installation["solaredge_site_id"],
-        installation_id=installation["installation_id"],
-    )
-    log(f"Pulling {count} measures for installation {installation['installation_id']}")
+        # As the SolarEdge API is rounding values to the quarter of an hour, we can just -15minutes to make sure we only retrieve complete quarters and ignore the current one.
+        # If we are 15:17, it will be 15:02, which is rounded to 15:00. If it is 13:45, it will be 13:30 which is what we want.
+        end = now - timedelta(minutes=15)
+
+        await import_power_into_db(
+            start=latest_power.time
+            + timedelta(minutes=15),  # skip the existing quarter
+            end=end,
+            client=client,
+            session=session,
+            site_id=installation["solaredge_site_id"],
+            installation_id=installation["installation_id"],
+        )
+        await import_energy_into_db(
+            start=latest_energy.time
+            + timedelta(minutes=15),  # skip the existing quarter
+            end=end,
+            client=client,
+            session=session,
+            site_id=installation["solaredge_site_id"],
+            installation_id=installation["installation_id"],
+        )
+        log(
+            f"Pulling {count} measures for installation {installation['installation_id']}"
+        )
 
 
 # Import energy data from SolarEdge API into our database in the measure table.
 # We want to map values like this:
 # Production -> solar_production, SelfConsumption -> solar_consumption, Purchased -> grid_consumption.
-def import_energy_into_db(
-    start, end, client: MonitoringClient, session: Session, site_id, installation_id
+async def import_energy_into_db(
+    start,
+    end,
+    client: MonitoringClient,
+    session: AsyncSession,
+    site_id,
+    installation_id,
 ):
     log(f"Getting energy data for {start} -> {end}")
     energy_details = client.get_energy_details(
@@ -182,17 +196,22 @@ def import_energy_into_db(
         )
         session.add(new_measure)
 
-    session.commit()  # save all all added measures inside a transaction
+    await session.commit()  # save all all added measures inside a transaction
     log(f"Saved {len(production)} energy entries in DB !")
 
 
 # Import power data from SolarEdge API into our database in the measure table.
 # We want to map values like this:
 # Production -> solar_production, SelfConsumption -> solar_consumption, Purchased -> grid_consumption.
-def import_power_into_db(
-    start, end, client: MonitoringClient, session: Session, site_id, installation_id
+async def import_power_into_db(
+    start,
+    end,
+    client: MonitoringClient,
+    session: AsyncSession,
+    site_id,
+    installation_id,
 ):
-    log(f"Getting energy data for a month {start} -> {end}")
+    log(f"Getting energy data for {start} -> {end}")
     power_details = client.get_power_details(
         site_id=site_id,
         start_time=start,
@@ -233,7 +252,7 @@ def import_power_into_db(
         )
         session.add(new_measure)
 
-    session.commit()  # save all all added measures inside a transaction
+    await session.commit()  # save all all added measures inside a transaction
     log(f"Saved {len(production)} power entries in DB !")
 
 
