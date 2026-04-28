@@ -75,6 +75,7 @@ async def start_background_pulling_at_regular_time():
             await pull_latest_missing_measures(client, ins)
 
         # Make sure that we sleep at least for INTERVAL_M
+        log(f"Going to sleep for {INTERVAL_M} minutes...")
         await asyncio.sleep(INTERVAL_M * 60)
 
 
