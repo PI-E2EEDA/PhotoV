@@ -26,11 +26,18 @@ from app.tasks.pull import start_background_pulling_at_regular_time, log
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
+def handle_task_result(task: asyncio.Task):
+    exc = task.exception()
+    if exc:
+        log(f"Exception in background task {exc}")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     print("Starting background task for pulling !")
     log("Log: Starting background task for pulling !")
     task = asyncio.create_task(start_background_pulling_at_regular_time())
+    task.add_done_callback(handle_task_result)
     print("Background task started !")
     yield
     task.cancel()
