@@ -10,7 +10,6 @@ from sqlalchemy.orm import create_session
 from sqlmodel import create_engine
 from app.db import get_database_url, get_async_session
 from app.models import Measure, MeasureType
-from app.tasks.util import print_success, print_error
 import os
 
 # CONSTANTS
@@ -18,6 +17,11 @@ FILE = "pull.config.json"
 MAX_QUERIES_PER_DAY = 300
 
 # TASK CODE
+
+
+def log(message: str):
+    with open("pull.logs.txt", mode="a") as log:
+        log.write(message)
 
 
 # We want to pull the latest measures every quarter of an hour, right after a quarter was done.
@@ -30,14 +34,14 @@ async def start_background_pulling_at_regular_time():
     STOP_START_HOUR_INDEX = 0  # stop pulling measures at midnight. Make sure conditions also work below if changed.
     STOP_END_HOUR_INDEX = 6  # restart pulling measures at 6AM. Make sure conditions also work below if changed.
     IDEAL_MINUTES = [1, 16, 31, 46, 61]
-    print("Starting background process for regular pull")
+    log("Starting background process for regular pull")
 
     session = get_async_session()
     while True:
         now = datetime.now()
         if now.hour >= STOP_START_HOUR_INDEX and now.hour < STOP_END_HOUR_INDEX:
             sleep_time_hour = STOP_END_HOUR_INDEX - now.hour
-            print(
+            log(
                 f"Stopping the background pulling for the night between hour {STOP_START_HOUR_INDEX} and {STOP_END_HOUR_INDEX}. Going to sleep for {sleep_time_hour} hours."
             )
             await asyncio.sleep(sleep_time_hour * 3600)
@@ -48,22 +52,22 @@ async def start_background_pulling_at_regular_time():
                 # The first ideal minute that is above current minute, is the next one
                 if now.minute < ideal_minute:
                     sleep_time_until_next_ideal_time = ideal_minute - now.minute
-                    print(
+                    log(
                         f"Going to sleep for {sleep_time_until_next_ideal_time} minutes until the next ideal time."
                     )
                     await asyncio.sleep(60 * sleep_time_until_next_ideal_time)
-                    print(
+                    log(
                         f"Sleep for {sleep_time_until_next_ideal_time} minutes is done."
                     )
                     break
 
         now = datetime.now()
         if now.minute not in IDEAL_MINUTES:
-            print(
+            log(
                 "Timing issue: this is still not an ideal time to pull latest measures..."
             )
             continue
-        print(f"Starting pulling latest measures for all installations at {now}")
+        log(f"Starting pulling latest measures for all installations at {now}")
         # reload installations in case it has changed in the meantime
         installations = load_pull_config()
         for ins in installations:
@@ -78,7 +82,7 @@ async def start_background_pulling_at_regular_time():
 # and pull all missing measures from SolarEdge. This is meant to be run frequently (like every hour)
 # but also need to support loading more data in case of API downtime.
 async def pull_latest_missing_measures(client, session, installation):
-    print(
+    log(
         f"Pulling latest missing measures for installation id: {installation['installation_id']}"
     )
     count = 0
@@ -95,7 +99,7 @@ async def pull_latest_missing_measures(client, session, installation):
     results = await session.execute(stmt)  # ignore this warning
     items = results.scalars().all()
     if len(items) < 2:
-        print(
+        log(
             "Error: latest measures not found. You need to pull the whole history with the pull_history script first !"
         )
         return
@@ -103,7 +107,7 @@ async def pull_latest_missing_measures(client, session, installation):
     latest_energy: Measure = items[1]
     now = datetime.now()
     if (latest_power.time - datetime.now()).days >= 30:
-        print(
+        log(
             "Error: data is missing since earlier than a month and the pull script doesn't support it. Fix the script."
         )
         return
@@ -127,9 +131,7 @@ async def pull_latest_missing_measures(client, session, installation):
         site_id=installation["solaredge_site_id"],
         installation_id=installation["installation_id"],
     )
-    print(
-        f"Pulling {count} measures for installation {installation['installation_id']}"
-    )
+    log(f"Pulling {count} measures for installation {installation['installation_id']}")
 
 
 # Import energy data from SolarEdge API into our database in the measure table.
@@ -138,7 +140,7 @@ async def pull_latest_missing_measures(client, session, installation):
 def import_energy_into_db(
     start, end, client: MonitoringClient, session: Session, site_id, installation_id
 ):
-    print(f"Getting energy data for {start} -> {end}")
+    log(f"Getting energy data for {start} -> {end}")
     energy_details = client.get_energy_details(
         site_id=site_id,
         start_time=start,
@@ -160,7 +162,7 @@ def import_energy_into_db(
             purchased = meter["values"]
 
     if production is None or selfconsumption is None or purchased is None:
-        print_error("Error: of the metric was not returned by the API !")
+        log("Error: of the metric was not returned by the API !")
         exit(3)
 
     entries_per_datetime = zip(production, selfconsumption, purchased)
@@ -181,7 +183,7 @@ def import_energy_into_db(
         session.add(new_measure)
 
     session.commit()  # save all all added measures inside a transaction
-    print_success(f"Saved {len(production)} energy entries in DB !")
+    log(f"Saved {len(production)} energy entries in DB !")
 
 
 # Import power data from SolarEdge API into our database in the measure table.
@@ -190,7 +192,7 @@ def import_energy_into_db(
 def import_power_into_db(
     start, end, client: MonitoringClient, session: Session, site_id, installation_id
 ):
-    print(f"Getting energy data for a month {start} -> {end}")
+    log(f"Getting energy data for a month {start} -> {end}")
     power_details = client.get_power_details(
         site_id=site_id,
         start_time=start,
@@ -211,7 +213,7 @@ def import_power_into_db(
             purchased = meter["values"]
 
     if production is None or selfconsumption is None or purchased is None:
-        print_error("Error: of the metric was not returned by the API !")
+        log("Error: of the metric was not returned by the API !")
         exit(3)
 
     entries_per_datetime = zip(production, selfconsumption, purchased)
@@ -232,7 +234,7 @@ def import_power_into_db(
         session.add(new_measure)
 
     session.commit()  # save all all added measures inside a transaction
-    print_success(f"Saved {len(production)} power entries in DB !")
+    log(f"Saved {len(production)} power entries in DB !")
 
 
 # HELPERS FUNCTIONS
@@ -249,7 +251,7 @@ def get_entry_value(entry) -> float:
 # Returns a list of installation from FILE
 def load_pull_config():
     folder = os.environ.get("CREDS_FOLDER", "../infra/creds")
-    print("Using credentials from " + folder)
+    log("Using credentials from " + folder)
     with open(f"{folder}/{FILE}", "r") as f:
         return json.load(f)
 
