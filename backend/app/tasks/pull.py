@@ -1,7 +1,6 @@
 # Task to regularly pull latest data from SolarEdge API for the credentials stored in pull.config.json
 import json
 from datetime import timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import asc, desc, select
 import asyncio
 from datetime import datetime
@@ -9,7 +8,6 @@ from solaredge import MonitoringClient
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import create_session
 from sqlmodel import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine
 from app.db import get_database_url, get_async_session
 from app.models import Measure
 from app.tasks.pull_history import import_energy_into_db, import_power_into_db
@@ -88,9 +86,19 @@ async def pull_latest_missing_measures(client, session, installation):
     )
     results = await session.execute(stmt)  # ignore this warning
     items = results.scalars().all()
+    if len(items) < 2:
+        print(
+            "Error: latest measures not found. You need to pull the whole history with the pull_history script first !"
+        )
+        return
     latest_power: Measure = items[0]
     latest_energy: Measure = items[1]
     now = datetime.now()
+    if (latest_power.time - datetime.now()).days >= 30:
+        print(
+            "Error: data is missing since earlier than a month and the pull script doesn't support it. Fix the script."
+        )
+        return
 
     # As the SolarEdge API is rounding values to the quarter of an hour, we can just -15minutes to make sure we only retrieve complete quarters and ignore the current one.
     # If we are 15:17, it will be 15:02, which is rounded to 15:00. If it is 13:45, it will be 13:30 which is what we want.
