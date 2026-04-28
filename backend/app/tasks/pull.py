@@ -85,9 +85,7 @@ async def pull_latest_missing_measures(client, installation):
     log(
         f"Pulling latest missing measures for installation id: {installation['installation_id']}"
     )
-    count = 0
     # Take the last power and energy measures to retrieve values only from this time and avoid collision with existing data in DB.
-
     stmt = (
         select(Measure)
         .where(Measure.installation_id == installation["installation_id"])
@@ -137,9 +135,6 @@ async def pull_latest_missing_measures(client, installation):
             session=session,
             site_id=installation["solaredge_site_id"],
             installation_id=installation["installation_id"],
-        )
-        log(
-            f"Pulling {count} measures for installation {installation['installation_id']}"
         )
 
 
