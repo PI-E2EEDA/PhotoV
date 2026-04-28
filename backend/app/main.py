@@ -1,4 +1,5 @@
 from typing import Annotated
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
@@ -29,11 +30,10 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 async def lifespan(_: FastAPI):
     print("Starting background task for pulling !")
     log("Log: Starting background task for pulling !")
-    background_tasks = BackgroundTasks()
-    background_tasks.add_task(start_background_pulling_at_regular_time)
-    print("Background tasks sarted !")
+    task = asyncio.create_task(start_background_pulling_at_regular_time())
+    print("Background task started !")
     yield
-    # clean up items
+    task.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
