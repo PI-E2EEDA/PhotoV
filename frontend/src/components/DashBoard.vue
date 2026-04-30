@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { MeasureType, type Measure } from '@/api/Api';
-import { useApiStore } from '@/stores/api';
-import { computed, onMounted, ref, watch, type Ref } from 'vue';
-import MeasuresGraph from './MeasuresGraph.vue';
+import { MeasureType, type Measure } from '@/api/Api'
+import { useApiStore } from '@/stores/api'
+import { computed, onMounted, ref, watch, type Ref } from 'vue'
+import MeasuresGraph from './MeasuresGraph.vue'
 const api = useApiStore()
 const type = ref(MeasureType.Power)
 const ascending = ref(false)
 const limit = ref(100)
 const offset = ref(0)
 const measures: Ref<Measure[]> = ref([])
+const unit = computed(() => {
+  return type.value == MeasureType.Energy ? 'Wh' : 'W'
+})
 
 async function reloadMeasures() {
   measures.value = await api.getLatestMeasures(type.value, ascending.value, limit.value, offset.value)
@@ -61,9 +64,9 @@ const isNextDayDisabled = computed(() => {
         <thead>
           <tr>
             <th>Time</th>
-            <th>Solar production</th>
-            <th>Solar consumption</th>
-            <th>Grid consumption</th>
+            <th>Solar production {{ unit }}</th>
+            <th>Solar consumption {{ unit }}</th>
+            <th>Grid consumption {{ unit }}</th>
           </tr>
         </thead>
         <tbody>
