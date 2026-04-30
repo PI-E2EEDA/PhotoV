@@ -1,0 +1,8 @@
+installation_id: 1
+api_base_url: "https://api.photov.srd.rs"
+
+smartplugs:
+  - id: 5
+    name: lave-linge
+  - id: 6
+    name: four

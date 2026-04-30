@@ -189,6 +189,7 @@ dependencies = [
     { name = "aioesphomeapi" },
     { name = "httpx" },
     { name = "pyyaml" },
+    { name = "solaredge" },
 ]
 
 [package.metadata]
@@ -196,6 +197,7 @@ requires-dist = [
     { name = "aioesphomeapi", specifier = ">=44.13.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "solaredge", specifier = ">=1.1.1" },
 ]
 
 [[package]]
@@ -290,6 +292,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytz"
+version = "2026.1.post1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/db/b8721d71d945e6a8ac63c0fc900b2067181dbb50805958d4d4661cf7d277/pytz-2026.1.post1.tar.gz", hash = "sha256:3378dde6a0c3d26719182142c56e60c7f9af7e968076f31aae569d72a0358ee1", size = 321088, upload-time = "2026-03-03T07:47:50.683Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/99/781fe0c827be2742bcc775efefccb3b048a3a9c6ce9aec0cbf4a101677e5/pytz-2026.1.post1-py2.py3-none-any.whl", hash = "sha256:f2fd16142fda348286a75e1a524be810bb05d444e5a081f37f7affc635035f7a", size = 510489, upload-time = "2026-03-03T07:47:49.167Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -313,6 +324,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
+]
+
+[[package]]
+name = "solaredge"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/af/5c/99f366a6b9866f9cdc02889174d90b1400007c2b13b49efd92e8559a37bb/solaredge-1.1.1.tar.gz", hash = "sha256:6edebe6f54ad506bd675ab9f2c954bad4c2174ed19562048ecdc8675678ceab6", size = 6712, upload-time = "2025-09-01T01:23:50.016Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/a3/2becf4f1894017dd38869b92e68147e3fa2ed1c7a22793d4c603726d1b0e/solaredge-1.1.1-py3-none-any.whl", hash = "sha256:4157f788e44b24788df077d847b322e8148a00c10406b5f9cb8492aa200fcb11", size = 7255, upload-time = "2025-09-01T01:23:48.959Z" },
 ]
 
 [[package]]

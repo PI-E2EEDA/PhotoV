@@ -12,3 +12,5 @@ pull.config.json
 *.onnx
 *.xml
 *.ipynb
+
+cookies.txt
