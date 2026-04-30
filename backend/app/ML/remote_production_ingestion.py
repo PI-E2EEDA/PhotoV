@@ -104,11 +104,7 @@ def _extract_power_w(row: dict[str, Any]) -> float:
     return 0.0
 
 
-def _extract_optional_float(row: dict[str, Any], keys: tuple[str, ...], default: float = 0.0) -> float:
-    for key in keys:
-        if key in row and row[key] is not None:
-            return float(row[key])
-    return default
+
 
 
 async def _resolve_auth_header(client: httpx.AsyncClient, base: str) -> dict[str, str]:
@@ -210,27 +206,31 @@ async def pull_remote_production_into_db(session: AsyncSession) -> int:
 
 
 def _build_measure_records(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build measure records from SolarEdge API response rows.
+    
+    Expected fields from SolarEdge API:
+    - pv_power_w (or similar): production in watts
+    - solar_consumption (or solar_consumption_w): consumption from solar
+    - grid_consumption (or grid_consumption_w): consumption from grid
+    - timestamp_utc: ISO timestamp
+    """
     records: list[dict[str, Any]] = []
     for row in rows:
         try:
             ts = _extract_timestamp(row)
             power_w = max(0.0, _extract_power_w(row))
+            # SolarEdge returns these directly; fallback to 0.0 if missing
+            solar_consumption = float(row.get("solar_consumption", row.get("solar_consumption_w", 0.0)))
+            grid_consumption = float(row.get("grid_consumption", row.get("grid_consumption_w", 0.0)))
+            
             records.append(
                 {
                     "type": MeasureType.power,
                     "time": ts,
                     "installation_id": REMOTE_INSTALLATION_ID,
                     "solar_production": power_w,
-                    "solar_consumption": _extract_optional_float(
-                        row,
-                        ("solar_consumption", "solar_consumption_w", "consumption_w"),
-                        0.0,
-                    ),
-                    "grid_consumption": _extract_optional_float(
-                        row,
-                        ("grid_consumption", "grid_consumption_w"),
-                        0.0,
-                    ),
+                    "solar_consumption": max(0.0, solar_consumption),
+                    "grid_consumption": max(0.0, grid_consumption),
                 }
             )
         except Exception:

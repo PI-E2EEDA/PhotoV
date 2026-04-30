@@ -62,7 +62,19 @@ services:
       POSTGRES_DB: photov
     volumes:
       - ./data/pgdata:/var/lib/postgresql/18/docker
-    # Only enable this in development !
+
+  dbdev:
+    image: postgres
+    profiles:
+      - dev
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: "${DB_PWD}"
+      POSTGRES_USER: photov
+      POSTGRES_DB: photov
+    volumes:
+      - ./data/devpgdata:/var/lib/postgresql/18/docker
     ports:
       - "5432:5432"
 

@@ -77,7 +77,7 @@ class MeasureType(Enum):
 class Measure(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     type: MeasureType
-    time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    time: datetime
     installation_id: int | None = Field(default=None, foreign_key="installation.id")
     solar_production: float
     solar_consumption: float
