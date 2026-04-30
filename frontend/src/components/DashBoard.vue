@@ -38,11 +38,12 @@ const isNextDayDisabled = computed(() => {
 <template>
   <div>
     <h2>Latest measures</h2>
-    <div class="max-h-[50vh] w-full">
+    <div class="min-h-[50vh] w-full">
       <MeasuresGraph :measures="measures"></MeasuresGraph>
     </div>
-    <div class="flex gap-x-4 items-center">
-      <div>Type:
+    <div class="flex flex-wrap gap-x-4 items-center">
+      <div>
+        Type:
         <select v-model="type">
           <option :value="MeasureType.Energy">Energy</option>
           <option :value="MeasureType.Power">Power</option>
@@ -59,7 +60,6 @@ const isNextDayDisabled = computed(() => {
       <table>
         <thead>
           <tr>
-            <th>ID</th>
             <th>Time</th>
             <th>Solar production</th>
             <th>Solar consumption</th>
@@ -68,7 +68,6 @@ const isNextDayDisabled = computed(() => {
         </thead>
         <tbody>
           <tr v-for="measure in measures" :key="measure.id ?? 0">
-            <td>{{ measure.id }}</td>
             <td>{{ measure.time }}</td>
             <td>{{ measure.solar_production }}</td>
             <td>{{ measure.solar_consumption }}</td>

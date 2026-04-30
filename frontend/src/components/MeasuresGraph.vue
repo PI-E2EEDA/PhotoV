@@ -56,7 +56,8 @@ const chartOptions = {
         maxTicksLimit: 60
       }
     }
-  }
+  },
+  maintainAspectRatio: false
 }
 </script>
 

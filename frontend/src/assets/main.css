@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Style specific to this website*/
 /* New colors based on the logo letters, extracted with color pipette in browser. */
@@ -9,44 +9,47 @@
 }
 
 nav a {
-  @apply p-2 rounded-md font-bold border-logo-o border
+  @apply p-2 rounded-md font-bold border-logo-o border;
 }
 
 a {
-  @apply text-blue-700 hover:text-blue-400
+  @apply text-blue-700 hover:text-blue-400;
 }
 
 body {
-	@apply text-lg;
+  @apply text-sm sm:text-base md:text-lg;
 }
 
 h1 {
-	@apply font-bold text-4xl;
+  @apply font-bold text-4xl;
 }
 h2 {
-	@apply text-3xl font-semibold my-2;
+  @apply text-3xl font-semibold my-2;
 }
 h3 {
-	@apply font-semibold text-2xl mt-3 mb-2;
+  @apply font-semibold text-2xl mt-3 mb-2;
 }
 h4 {
-	@apply text-xl mt-2 mb-2;
+  @apply text-xl mt-2 mb-2;
 }
 button {
-	@apply bg-logo-p/30 rounded-sm px-2 m-2 disabled:text-logo-p/80 disabled:bg-logo-p/20 hover:bg-logo-p/50 cursor-pointer disabled:cursor-auto;
+  @apply bg-logo-p/30 rounded-sm px-2 m-2 disabled:text-logo-p/80 disabled:bg-logo-p/20 hover:bg-logo-p/50 cursor-pointer disabled:cursor-auto;
 }
 
-input, select {
-	@apply border border-logo-p rounded-sm m-2 p-1;
+input,
+select {
+  @apply border border-logo-p rounded-sm m-2 p-1;
 }
-table, th, td {
-  @apply border border-logo-p px-3;
+table,
+th,
+td {
+  @apply border border-logo-p px-1 sm:px-3;
 }
 
 ol,
 ul {
-	@apply ml-8;
+  @apply ml-8;
 }
 ul li {
-	@apply list-disc;
+  @apply list-disc;
 }
