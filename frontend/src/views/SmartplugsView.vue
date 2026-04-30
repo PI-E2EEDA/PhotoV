@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import SmartplugsDetails from '@/components/SmartplugsDetails.vue';
+import SmartplugsDetails from '@/components/SmartplugsDetails.vue'
 </script>
 
 <template>
