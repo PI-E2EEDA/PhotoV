@@ -305,9 +305,12 @@ async def fetch_and_store_weather_history_open_meteo(session: AsyncSession, days
         records.append(record)
 
     if records:
-        stmt = insert(WeatherHistory).values(records)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["time", "point_id"])
-        await session.execute(stmt)
+        batch_size = 2000  # asyncpg limit: 32767 params; 10 cols × 2000 = 20000
+        for i in range(0, len(records), batch_size):
+            batch = records[i : i + batch_size]
+            stmt = insert(WeatherHistory).values(batch)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["time", "point_id"])
+            await session.execute(stmt)
         await session.commit()
         LOGGER.info(f"Open-Meteo: {len(records)} observations insérées dans WeatherHistory.")
 
