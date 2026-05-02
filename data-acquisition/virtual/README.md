@@ -9,9 +9,16 @@ cp virtual.json.example virtual.json
 You have to configure `virtual.json`.
 
 ## Run the script
-```
+You may want to use `tmux` or `screen` to connect as SSH, run the script and logout as SSH without stopping the script execution. These commands show how to do that with tmux.
+
+```sh
+tmux # enter a tmux session
 uv run -m virtual.start-virtual-smartplug
+
+# type ctrl+b then d like detach
 ```
+
+Now you can exit the SSH session and the script will continue ! When connecting back, run `tmux attach` to attach to the previous session.
 
 It starts with an interactive setup to configure
 ```sh
