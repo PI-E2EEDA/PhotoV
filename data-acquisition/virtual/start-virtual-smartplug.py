@@ -1,39 +1,59 @@
+import questionary
 import httpx
-import yaml
+import json
 from datetime import datetime
 from pathlib import Path
-from solaredge import MonitoringClient
 
-CONFIG_PATH = Path(__file__).parent / "service" / "config.yaml"
+VIRTUAL_CONFIG_PATH = Path(__file__).parent / "virtual.json"
 API_ROUTE_SEND_MEASURE = "smartplugs"
+# IMPORTANT: this is not the same subdomain !
+SOLAREDGE_INTERNAL_API_BASE_URL = "https://monitoring.solaredge.com"
+PHOTOV_API_BASE_URL = "https://api.photov.srd.rs"
 
 
-def get_yaml_config():
-    config = None
-    with open(CONFIG_PATH) as f:
-        config = yaml.safe_load(f)
-        return config
+def get_virtual_config():
+    with open(VIRTUAL_CONFIG_PATH, "r") as f:
+        return json.load(f)
 
 
-def setup_api_client(installation):
-    # TODO: setup httpx client with cookies in cookies.txt
-    # and all headers to simulate a web browser
-    client = httpx.Client()
-    client.cookies.set(..)
-    return MonitoringClient(...)
+# This request by built by looking at the Firefox Network panel (F12) on the monitoring UI.
+# When filtering with "power-flow", we can see a request every 5-6 seconds. With a right-click, copy, copy as CURL, we can extract all the headers.
+def get_powerflow_measure_from_solaredge(inst_config):
+    site_id = inst_config["solaredge_site_id"]
+    cookies = inst_config["cookies"]
 
+    # Note: The URL is different from the official monitoring API
+    url = f"{SOLAREDGE_INTERNAL_API_BASE_URL}/services/dashboard/power-flow/v2/sites/{site_id}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://monitoring.solaredge.com/one",
+        "Origin": "https://monitoring.solaredge.com",
+        "X-Requested-With": "XMLHttpRequest",
+    }
 
-def get_powerflow_measure_from_solaredge():
-    # TODO: implement the request
-    print("yep")
+    cookies = dict(item.strip().split("=", 1) for item in cookies.split(";"))
+    params = {
+        "components": "grid,consumption"
+    }  # we don't need grid but it's better to simulate the web app...
+
+    with httpx.Client() as client:
+        response = client.get(url, headers=headers, params=params, cookies=cookies)
+        if not response.is_error:
+            data = response.json()
+            current_power = data["consumption"]["currentPower"]
+            print(f"Current power is {current_power}")
+        else:
+            print(f"Request failed with code {response.status_code}")
 
 
 def save_smartplug_measure_on_photov(
-    config, client: httpx.Client, smartplug_id: int, value: float
+    inst_config, client: httpx.Client, smartplug_id: int, value: float
 ):
-    base_url = config["api_base_url"]
-    installation_id = config["installation_id"]
-    api_token = config["api_token"]
+    base_url = PHOTOV_API_BASE_URL
+    installation_id = inst_config["installation_id"]
+    api_token = inst_config["photov_api_token"]
     try:
         response = client.post(
             f"{base_url}/{API_ROUTE_SEND_MEASURE}/{installation_id}/",
@@ -57,11 +77,30 @@ def save_smartplug_measure_on_photov(
         print(f"Could not reach API at {base_url}, will retry next cycle")
 
 
+def interactive_config():
+    print("Welcome to the interactive start of a virtual smartplug !")
+    virtual_config = get_virtual_config()
+    names = [installation["name"] for installation in virtual_config]
+    inst_name = questionary.select(
+        "Choose one of the installations configured in virtual.json",
+        choices=names,
+    ).ask()
+    inst_config = virtual_config[names.index(inst_name)]
+
+    smartplug_names = [smartplug["name"] for smartplug in inst_config["smartplugs"]]
+    smartplug_name = questionary.select(
+        "Choose the virtual smartplug to start now",
+        choices=smartplug_names,
+    ).ask()
+
+    smartplug_id = smartplug_names.index(smartplug_name)
+    return (inst_config, smartplug_id)
+
+
 def main():
-    config = get_yaml_config()
-    client = setup_api_client()
-    get_powerflow_measure_from_solaredge()
-    save_smartplug_measure_on_photov(config, client)
+    inst_config, smartplug_id = interactive_config()
+    get_powerflow_measure_from_solaredge(inst_config)
+    save_smartplug_measure_on_photov(value, smartplug_id)
 
 
 main()
