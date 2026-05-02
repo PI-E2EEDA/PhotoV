@@ -156,9 +156,11 @@ async def _build_training_dataframe(
     # Measure.time is naive local time (SolarEdge convention). Localize to the
     # installation timezone then convert to UTC to align with WeatherHistory.
     m_df["time"] = pd.to_datetime(m_df["time"])
-    m_df["time"] = m_df["time"].dt.tz_localize(
-        LOCAL_TIMEZONE, ambiguous="infer", nonexistent="shift_forward"
-    ).dt.tz_convert("UTC")
+    if m_df["time"].dt.tz is None:
+        m_df["time"] = m_df["time"].dt.tz_localize(
+            LOCAL_TIMEZONE, ambiguous="infer", nonexistent="shift_forward"
+        )
+    m_df["time"] = m_df["time"].dt.tz_convert("UTC")
     m_df = m_df.drop_duplicates(subset=["time"]).set_index("time").sort_index()
 
     w_result = await session.execute(
