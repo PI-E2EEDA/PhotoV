@@ -14,3 +14,4 @@ pull.config.json
 *.ipynb
 
 cookies.txt
+backend/pull.logs.txt

@@ -1,5 +1,6 @@
 # Task to regularly pull latest data from SolarEdge API for the credentials stored in pull.config.json
 import json
+import sys
 from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import asc, desc, select
@@ -20,8 +21,15 @@ MAX_QUERIES_PER_DAY = 300
 # TASK CODE
 
 
+# In dev mode we run "fastapi dev", in production we run "fastapi run"
+DEV_MODE = sys.argv[1] == "dev"
+
+
 def log(message: str):
-    with open("/app/pull.logs.txt", mode="a") as log:
+    file = "/app/pull.logs.txt"  # the /app folder exists in the production container
+    if DEV_MODE:  # in local, we usually don't have a /app
+        file = "pull.logs.txt"
+    with open(file, mode="a") as log:
         log.write(message + "\n")
 
 
