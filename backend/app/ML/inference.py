@@ -11,9 +11,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..schemas.prediction import BestSlotResponse, PredictionPoint, PredictionResponse
-from .config import HORIZON, MODELS_DIR, INTERNAL_WEATHER_COLUMNS
-from .data_pipeline import build_dataset
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
+from app.models import Measure, MeasureType, Prediction
+from ..schemas.prediction import PredictionPoint, PredictionResponse
+from .config import HORIZON, LOCAL_TIMEZONE, MODELS_DIR, INTERNAL_WEATHER_COLUMNS
+from .data_pipeline import build_dataset, build_forecast_dataset_from_db, build_realtime_dataset_async
 from .feature_engineering import build_features
 from .model_training import load_forecaster
 
@@ -60,169 +64,243 @@ def reload_models() -> None:
 	_load_forecasters()
 
 
-def _prepare_base_features() -> pd.DataFrame:
-	"""Build realtime dataset and transform it into feature space."""
-	dataset = build_dataset(source="realtime")
-	if dataset.empty:
-		now = pd.Timestamp.now(tz="UTC").floor("15min")
-		idx = pd.date_range(start=now, periods=HORIZON, freq="15min", tz="UTC")
-		dataset = pd.DataFrame(
-			{col: np.zeros(HORIZON, dtype=float) for col in INTERNAL_WEATHER_COLUMNS},
-			index=idx,
-		)
+async def _fetch_recent_production_df(
+    session: AsyncSession,
+    installation_id: int,
+    n_rows: int = 200,
+) -> pd.DataFrame:
+    """Retourne les n_rows dernières mesures power indexées en UTC."""
+    import zoneinfo
+    result = await session.execute(
+        select(Measure)
+        .where(Measure.installation_id == installation_id)
+        .where(Measure.type == MeasureType.power)
+        .order_by(Measure.time.desc())
+        .limit(n_rows)
+    )
+    measures = result.scalars().all()
+    if not measures:
+        return pd.DataFrame()
 
-	return build_features(dataset, drop_na=False)
+    local_tz = zoneinfo.ZoneInfo(LOCAL_TIMEZONE)
+    rows = [
+        {
+            "time": pd.Timestamp(m.time, tz=local_tz).tz_convert("UTC"),
+            "production_kw": float(m.solar_production) / 1000.0,
+            "consumption_kw": float(m.solar_consumption + m.grid_consumption) / 1000.0,
+        }
+        for m in reversed(measures)  # oldest first
+    ]
+    df = pd.DataFrame(rows).set_index("time").sort_index()
+    return df[~df.index.duplicated(keep="last")]
+
+
+def _build_features_for_inference(
+    recent_prod_df: pd.DataFrame,
+    forecast_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Construit les features pour l'inférence en ancrant les lags sur l'historique réel.
+
+    Concatène l'historique récent (avec production_kw/consumption_kw) et les prévisions
+    météo futures, applique build_features sur l'ensemble, puis retourne uniquement les
+    lignes futures. Les lags de production pour les premiers pas seront ainsi des vraies
+    valeurs historiques et non pas des zéros.
+    """
+    if recent_prod_df.empty:
+        return build_features(forecast_df, drop_na=False)
+
+    # Étendre le forecast avec des colonnes production vides (NaN → pas de cible)
+    forecast_ext = forecast_df.copy()
+    forecast_ext["production_kw"] = np.nan
+    forecast_ext["consumption_kw"] = np.nan
+
+    # Étendre l'historique avec des colonnes météo vides
+    history_ext = recent_prod_df.copy()
+    for col in INTERNAL_WEATHER_COLUMNS:
+        if col not in history_ext.columns:
+            history_ext[col] = np.nan
+
+    combined = pd.concat([history_ext, forecast_ext]).sort_index()
+    combined = combined[~combined.index.duplicated(keep="last")]
+
+    features = build_features(combined, drop_na=False)
+
+    # Retourner uniquement les lignes futures (horizon du forecast)
+    future_start = forecast_df.index.min()
+    return features[features.index >= future_start]
+
+
+def _prepare_base_features() -> pd.DataFrame:
+    """Fallback synchrone : construit les features depuis MeteoSwiss live (sans lags réels)."""
+    dataset = build_dataset(source="realtime")
+    if dataset.empty:
+        now = pd.Timestamp.now(tz="UTC").floor("15min")
+        idx = pd.date_range(start=now, periods=HORIZON, freq="15min", tz="UTC")
+        dataset = pd.DataFrame(
+            {col: np.zeros(HORIZON, dtype=float) for col in INTERNAL_WEATHER_COLUMNS},
+            index=idx,
+        )
+    return build_features(dataset, drop_na=False)
 
 
 def _build_exog_for_forecaster(
-	features_df: pd.DataFrame,
-	forecaster: Any,
-	horizon: int,
+        features_df: pd.DataFrame,
+        forecaster: Any,
+        horizon: int,
 ) -> pd.DataFrame | None:
-	"""Create future exogenous matrix aligned with expected forecaster columns."""
-	if features_df.empty:
-		future_index = pd.date_range(
-			start=pd.Timestamp.now(tz="UTC").floor("15min") + pd.Timedelta(minutes=15),
-			periods=horizon,
-			freq="15min",
-			tz="UTC",
-		)
-		candidate = pd.DataFrame(index=future_index)
-	else:
-		start_ts = features_df.index.max() + pd.Timedelta(minutes=15)
-		future_index = pd.date_range(start=start_ts, periods=horizon, freq="15min", tz="UTC")
-		candidate = features_df.reindex(future_index)
+        """Create future exogenous matrix aligned with expected forecaster columns."""
+        last_window_end = forecaster.last_window.index[-1] if hasattr(forecaster, 'last_window') and forecaster.last_window is not None else pd.Timestamp.now(tz="UTC").floor("15min")
+        expected_start = last_window_end + pd.Timedelta(minutes=15)
 
-	candidate = candidate.copy()
-	candidate = candidate.interpolate(method="linear", limit_direction="both")
-	candidate = candidate.ffill().bfill().fillna(0.0)
+        future_index = pd.date_range(start=expected_start, periods=horizon, freq="15min", tz="UTC")
+        candidate = pd.DataFrame(index=future_index)
 
-	expected_cols = list(getattr(forecaster, "exog_names_in_", []) or [])
-	if not expected_cols:
-		return None
+        # Merge with existing features safely to keep recent known weather
+        if not features_df.empty:
+            merged = pd.concat([features_df, candidate], axis=0).sort_index()
+            merged = merged[~merged.index.duplicated(keep='last')]
+            merged = merged.interpolate(method="time", limit_direction="both")
+            candidate = merged.reindex(future_index)
 
-	for col in expected_cols:
-		if col not in candidate.columns:
-			candidate[col] = 0.0
+        candidate = candidate.ffill().bfill().fillna(0.0)
 
-	exog = candidate[expected_cols]
-	return exog.astype(float)
+        expected_cols = list(getattr(forecaster, "exog_names_in_", []) or [])
+        if not expected_cols:
+                return None
 
+        for col in expected_cols:
+                if col not in candidate.columns:
+                        candidate[col] = 0.0
 
-def build_prediction_response(features_df: pd.DataFrame | None = None) -> PredictionResponse:
-	"""Generate predictions and format API response payload."""
-	production_forecaster, consumption_forecaster = _load_forecasters()
-	features = features_df if features_df is not None else _prepare_base_features()
-
-	exog_prod = _build_exog_for_forecaster(features, production_forecaster, HORIZON)
-	exog_cons = _build_exog_for_forecaster(features, consumption_forecaster, HORIZON)
-
-	pred_prod_raw = production_forecaster.predict(steps=HORIZON, exog=exog_prod)
-	pred_cons_raw = consumption_forecaster.predict(steps=HORIZON, exog=exog_cons)
-
-	pred_prod = np.clip(np.asarray(pred_prod_raw, dtype=float), 0.0, None)
-	pred_cons = np.clip(np.asarray(pred_cons_raw, dtype=float), 0.0, None)
-
-	if hasattr(pred_prod_raw, "index") and isinstance(pred_prod_raw.index, pd.DatetimeIndex):
-		pred_index = pred_prod_raw.index
-	else:
-		pred_index = pd.date_range(
-			start=pd.Timestamp.now(tz="UTC").floor("15min") + pd.Timedelta(minutes=15),
-			periods=HORIZON,
-			freq="15min",
-			tz="UTC",
-		)
-
-	points: list[PredictionPoint] = []
-	for ts, prod, cons in zip(pred_index, pred_prod, pred_cons):
-		points.append(
-			PredictionPoint(
-				timestamp=ts,
-				production_kw=float(prod),
-				consumption_kw=float(cons),
-				surplus_kw=float(prod - cons),
-			)
-		)
-
-	response = PredictionResponse(
-		generated_at=datetime.now(timezone.utc),
-		horizon_steps=HORIZON,
-		predictions=points,
-	)
-
-	with CACHE_LOCK:
-		PREDICTIONS_CACHE["response"] = response.model_dump()
-
-	return response
+        exog = candidate[expected_cols]
+        # Keep exact index
+        exog.index = future_index
+        return exog.astype(float)
 
 
-def refresh_predictions_task() -> None:
-	"""Background job that refreshes cached predictions."""
-	if not models_available():
-		LOGGER.warning(
-			"Skipping prediction refresh: model files are missing at %s and %s.",
-			PRODUCTION_MODEL_PATH,
-			CONSUMPTION_MODEL_PATH,
-		)
-		return
+def build_prediction_response(
+    features_df: pd.DataFrame | None = None,
+    last_window_prod: "pd.Series | None" = None,
+    last_window_cons: "pd.Series | None" = None,
+) -> PredictionResponse:
+    """Generate predictions and format API response payload.
 
-	try:
-		LOGGER.info("Refreshing prediction cache.")
-		dataset = build_dataset(source="realtime")
-		features_df = build_features(dataset, drop_na=False)
-		build_prediction_response(features_df)
-		LOGGER.info("Prediction cache refreshed successfully.")
-	except RuntimeError as exc:
-		LOGGER.warning("Prediction refresh skipped: %s", exc)
-	except Exception:
-		LOGGER.exception("Prediction refresh failed.")
+    last_window_prod / last_window_cons : dernières valeurs réelles de production/conso
+    (pd.Series UTC-indexée). Quand fournie, remplace le last_window figé de l'entraînement
+    et donne au modèle les vraies valeurs passées pour ses lags AR internes.
+    """
+    production_forecaster, consumption_forecaster = _load_forecasters()
+    features = features_df if features_df is not None else _prepare_base_features()
+
+    exog_prod = _build_exog_for_forecaster(features, production_forecaster, HORIZON)
+    exog_cons = _build_exog_for_forecaster(features, consumption_forecaster, HORIZON)
+
+    pred_prod_raw = production_forecaster.predict(
+        steps=HORIZON, exog=exog_prod, last_window=last_window_prod
+    )
+    pred_cons_raw = consumption_forecaster.predict(
+        steps=HORIZON, exog=exog_cons, last_window=last_window_cons
+    )
+
+    pred_prod = np.clip(np.asarray(pred_prod_raw, dtype=float), 0.0, None)
+    pred_cons = np.clip(np.asarray(pred_cons_raw, dtype=float), 0.0, None)
+
+    if hasattr(pred_prod_raw, "index") and isinstance(pred_prod_raw.index, pd.DatetimeIndex):
+        pred_index = pred_prod_raw.index
+    else:
+        pred_index = pd.date_range(
+            start=pd.Timestamp.now(tz="UTC").floor("15min") + pd.Timedelta(minutes=15),
+            periods=HORIZON,
+            freq="15min",
+            tz="UTC",
+        )
+
+    points: list[PredictionPoint] = []
+    for ts, prod, cons in zip(pred_index, pred_prod, pred_cons):
+        points.append(
+            PredictionPoint(
+                timestamp=ts,
+                production_kw=float(prod),
+                consumption_kw=float(cons),
+                surplus_kw=float(prod - cons),
+            )
+        )
+
+    response = PredictionResponse(
+        generated_at=datetime.now(timezone.utc),
+        horizon_steps=HORIZON,
+        predictions=points,
+    )
+
+    with CACHE_LOCK:
+        PREDICTIONS_CACHE["response"] = response.model_dump()
+
+    return response
 
 
-def get_best_slot(duration_minutes: int = 60) -> BestSlotResponse:
-	"""Return the best time slot with maximum positive average surplus."""
-	with CACHE_LOCK:
-		cached = PREDICTIONS_CACHE.get("response")
+async def predict_and_store(session: AsyncSession, installation_id: int = 1) -> None:
+    """Job de fond : génère les prédictions depuis DB et les stocke dans Prediction."""
+    if not models_available():
+        LOGGER.warning(
+            "Skipping prediction refresh: model files are missing at %s and %s.",
+            PRODUCTION_MODEL_PATH,
+            CONSUMPTION_MODEL_PATH,
+        )
+        return
 
-	if cached is None:
-		cached = build_prediction_response().model_dump()
+    try:
+        LOGGER.info("Refreshing predictions (DB forecast + real production lags).")
 
-	pred_items = cached["predictions"]
-	timestamps = pd.to_datetime([item["timestamp"] for item in pred_items], utc=True)
-	surplus_values = np.array([float(item["surplus_kw"]) for item in pred_items], dtype=float)
+        # 1. Prévisions météo depuis WeatherForecast en DB (remplie juste avant par fetch_and_store_weather_forecast)
+        forecast_df = await build_forecast_dataset_from_db(session, installation_id)
+        if forecast_df.empty:
+            LOGGER.warning("WeatherForecast DB vide, fallback MeteoSwiss live.")
+            forecast_df = await build_realtime_dataset_async()
 
-	window_steps = max(1, int(np.ceil(duration_minutes / 15)))
-	window_steps = min(window_steps, len(surplus_values))
+        # 2. Historique récent de production (pour alimenter les lags AR et les lags exogènes)
+        recent_prod_df = await _fetch_recent_production_df(session, installation_id, n_rows=200)
 
-	best_avg = -np.inf
-	best_start_idx = 0
+        # 3. Features avec lags réels
+        features_df = _build_features_for_inference(recent_prod_df, forecast_df)
 
-	for i in range(0, len(surplus_values) - window_steps + 1):
-		window = surplus_values[i : i + window_steps]
-		avg_surplus = float(window.mean())
-		if avg_surplus > best_avg:
-			best_avg = avg_surplus
-			best_start_idx = i
+        # 4. last_window pour les lags AR internes du forecaster
+        last_window_prod = recent_prod_df["production_kw"] if not recent_prod_df.empty else None
+        last_window_cons = recent_prod_df["consumption_kw"] if not recent_prod_df.empty else None
 
-	if best_avg > 0.0:
-		start_ts = timestamps[best_start_idx]
-		end_ts = timestamps[best_start_idx + window_steps - 1]
-		reason = (
-			f"Best window over {duration_minutes} minutes based on maximum "
-			"average surplus."
-		)
-		avg_value = best_avg
-	else:
-		start_ts = timestamps[0]
-		end_ts = timestamps[min(window_steps - 1, len(timestamps) - 1)]
-		reason = "No positive average surplus found; returning the earliest available window."
-		avg_value = 0.0
+        response = build_prediction_response(features_df, last_window_prod, last_window_cons)
 
-	return BestSlotResponse(
-		best_start=start_ts,
-		best_end=end_ts,
-		avg_surplus_kw=float(avg_value),
-		reason=reason,
-	)
+        reference_time = response.generated_at
+        records = [
+            {
+                "target_time": p.timestamp,
+                "reference_time": reference_time,
+                "installation_id": installation_id,
+                "production_kw": p.production_kw,
+                "consumption_kw": p.consumption_kw,
+                "surplus_kw": p.surplus_kw,
+            }
+            for p in response.predictions
+        ]
+
+        if records:
+            stmt = insert(Prediction).values(records)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["installation_id", "target_time", "reference_time"],
+                set_={
+                    "production_kw": stmt.excluded.production_kw,
+                    "consumption_kw": stmt.excluded.consumption_kw,
+                    "surplus_kw": stmt.excluded.surplus_kw,
+                },
+            )
+            await session.execute(stmt)
+            await session.commit()
+            LOGGER.info("Saved %d predictions to DB.", len(records))
+
+    except RuntimeError as exc:
+        LOGGER.warning("Prediction refresh skipped: %s", exc)
+    except Exception:
+        LOGGER.exception("Prediction refresh failed.")
+
 
 
 def get_health_payload() -> dict[str, Any]:

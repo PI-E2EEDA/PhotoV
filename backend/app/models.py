@@ -99,6 +99,16 @@ class WeatherHistory(SQLModel, table=True):
     cloudcover_low: float
     __table_args__ = (UniqueConstraint("time", "point_id"),)
 
+class Prediction(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    target_time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    reference_time: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    installation_id: int | None = Field(default=None, foreign_key="installation.id")
+    production_kw: float
+    consumption_kw: float
+    surplus_kw: float
+
+    __table_args__ = (UniqueConstraint("installation_id", "target_time", "reference_time"),)
 
 # Declare a base from your metadata. This is required for migrations/env.py target_metadata access.
 mymetadata = MetaData()

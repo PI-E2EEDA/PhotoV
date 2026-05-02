@@ -140,6 +140,11 @@ def add_solar_features(df: pd.DataFrame) -> pd.DataFrame:
         night_mask = out["is_daylight"] == 0
         out.loc[night_mask, ["poa_global_radiation", "shortwave_radiation", "diffuse_radiation"]] = 0.0
 
+        # Correction thermique : les panneaux perdent ~0.4%/°C au-dessus de 25°C
+        if "temperature_2m" in out.columns:
+            temp_derating = ((out["temperature_2m"] - 25.0) * 0.004).clip(lower=0.0)
+            out["poa_derated"] = out["poa_global_radiation"] * (1.0 - temp_derating)
+
     return out
 
 
@@ -194,7 +199,8 @@ def build_features(
     out = add_time_features(out)
     out = add_solar_features(out)
     out = add_weather_interactions(out)
-    out = add_installation_static_features(out)
+    # Static features (panel_count, area…) ont variance=0 sur un dataset mono-installation
+    # → LightGBM les ignore, inutile de les inclure
 
     if lag_columns is None:
         # On privilégie notre nouvelle super feature POA pour les lags !

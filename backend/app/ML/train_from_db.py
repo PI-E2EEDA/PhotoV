@@ -23,6 +23,7 @@ from app.models import Installation, Measure, MeasureType, WeatherHistory
 
 from .config import (
     INTERNAL_WEATHER_COLUMNS,
+    LOCAL_TIMEZONE,
     METEOSWISS_POINT_ID,
 )
 from .feature_engineering import build_features
@@ -152,7 +153,12 @@ async def _build_training_dataframe(
             "consumption_kw": [float(m.solar_consumption + m.grid_consumption) / 1000.0 for m in measures],
         }
     )
-    m_df["time"] = pd.to_datetime(m_df["time"], utc=True)
+    # Measure.time is naive local time (SolarEdge convention). Localize to the
+    # installation timezone then convert to UTC to align with WeatherHistory.
+    m_df["time"] = pd.to_datetime(m_df["time"])
+    m_df["time"] = m_df["time"].dt.tz_localize(
+        LOCAL_TIMEZONE, ambiguous="infer", nonexistent="shift_forward"
+    ).dt.tz_convert("UTC")
     m_df = m_df.drop_duplicates(subset=["time"]).set_index("time").sort_index()
 
     w_result = await session.execute(
@@ -181,9 +187,30 @@ async def _build_training_dataframe(
         w_df["time"] = pd.to_datetime(w_df["time"], utc=True)
         w_df = w_df.drop_duplicates(subset=["time"]).set_index("time").sort_index()
 
+        # == ALIGNEMENT MANUEL (SUPERPOSITION & TIMEZONE) ==
+        # On garantit que les deux index sont bien dans le même référentiel UTC
+        if m_df.index.tz is None:
+            m_df.index = m_df.index.tz_localize("UTC")
+        else:
+            m_df.index = m_df.index.tz_convert("UTC")
+
+        if w_df.index.tz is None:
+            w_df.index = w_df.index.tz_localize("UTC")
+        else:
+            w_df.index = w_df.index.tz_convert("UTC")
+
+        # On force une intersection temporelle stricte pour éviter l'extrapolation (les NaNs / 0 artificiels)
+        common_start = max(m_df.index.min(), w_df.index.min())
+        common_end = min(m_df.index.max(), w_df.index.max())
+
+        m_df = m_df.loc[common_start:common_end]
+
+        if m_df.empty:
+            raise ValueError("L'intersection temporelle entre les Mesures et la Météo est vide. Impossible de s'entraîner.")
+
         weather_15 = w_df.reindex(m_df.index)
-        weather_15 = weather_15.interpolate(method="time").ffill().bfill().fillna(0.0)
-        print(f"Meteo historique utilisee: {len(w_df)} lignes sur la periode d'entrainement")
+        weather_15 = weather_15.interpolate(method="time").ffill().bfill()
+        print(f"Meteo historique utilisee: {len(w_df)} lignes. Alignée de {common_start} à {common_end}.")
     else:
         # First run fallback: allow training with autoregressive + temporal features only.
         weather_15 = pd.DataFrame(index=m_df.index)
@@ -192,7 +219,8 @@ async def _build_training_dataframe(
         print("Attention: aucune meteo historique sur cette periode, fallback meteo=0 active")
 
     dataset = m_df.join(weather_15, how="left")
-    dataset = dataset.sort_index().fillna(0.0)
+    # On supprime les NaNs plutôt que de mettre à 0, pour garantir l'intégrité de l'entraînement
+    dataset = dataset.sort_index().dropna()
     return dataset
 
 

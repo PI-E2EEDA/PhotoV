@@ -1,8 +1,9 @@
 from typing import Annotated
 from datetime import datetime, timezone, timedelta
 import logging
+import numpy as np
 from fastapi import Depends, FastAPI, HTTPException
-from sqlalchemy import text
+from sqlalchemy import text, func as sqlfunc
 from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +16,11 @@ from app.auth import setup_auth_routes
 from app.db import get_session
 from app.ML.scheduler import start_scheduler, stop_scheduler, get_scheduler_health
 from app.ML.remote_production_ingestion import get_remote_ingestion_health
-from app.ML.inference import build_prediction_response, get_best_slot
 from app.models import (
     Installation,
     Measure,
     MeasureType,
+    Prediction,
     User,
     UserInstallationLink,
     SmartPlugMeasure,
@@ -27,7 +28,7 @@ from app.models import (
     WeatherHistory,
 )
 from app.schemas.ml_health import MLIngestionHealthResponse
-from app.schemas.prediction import PredictionResponse, BestSlotResponse
+from app.schemas.prediction import BestSlotResponse, PredictionPoint, PredictionResponse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -279,15 +280,78 @@ async def get_ml_ingestion_health(session: SessionDep, user: User = Depends(curr
     )
 
 
-@app.get("/ml/predictions", response_model=PredictionResponse, tags=["ml"], description="Get current predictions")
-async def api_get_predictions():
-    """Return current predictions (generated on demand)."""
-    return build_prediction_response()
+@app.get("/ml/predictions/{installation_id}", response_model=PredictionResponse, tags=["ml"], description="Get latest predictions from DB")
+async def api_get_predictions(session: SessionDep, installation_id: int, user: User = Depends(current_user_fn)):
+    await validate_current_user_can_access_installation(user.id, installation_id, session)
+    result = await session.execute(
+        select(sqlfunc.max(Prediction.reference_time)).where(Prediction.installation_id == installation_id)
+    )
+    latest_ref = result.scalar()
+    if latest_ref is None:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible. Le scheduler n'a pas encore tourné.")
+
+    result = await session.execute(
+        select(Prediction)
+        .where(Prediction.installation_id == installation_id)
+        .where(Prediction.reference_time == latest_ref)
+        .order_by(Prediction.target_time.asc())
+    )
+    preds = result.scalars().all()
+    points = [
+        PredictionPoint(
+            timestamp=p.target_time,
+            production_kw=p.production_kw,
+            consumption_kw=p.consumption_kw,
+            surplus_kw=p.surplus_kw,
+        )
+        for p in preds
+    ]
+    return PredictionResponse(generated_at=latest_ref, horizon_steps=len(points), predictions=points)
 
 
-@app.get("/ml/best-slot", response_model=BestSlotResponse, tags=["ml"], description="Get best time slot based on predictions")
-async def api_get_best_slot(duration_minutes: int = 60):
-    return get_best_slot(duration_minutes=duration_minutes)
+@app.get("/ml/best-slot/{installation_id}", response_model=BestSlotResponse, tags=["ml"], description="Get best time slot based on latest predictions")
+async def api_get_best_slot(session: SessionDep, installation_id: int, duration_minutes: int = 60, user: User = Depends(current_user_fn)):
+    await validate_current_user_can_access_installation(user.id, installation_id, session)
+    result = await session.execute(
+        select(sqlfunc.max(Prediction.reference_time)).where(Prediction.installation_id == installation_id)
+    )
+    latest_ref = result.scalar()
+    if latest_ref is None:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible.")
+
+    result = await session.execute(
+        select(Prediction)
+        .where(Prediction.installation_id == installation_id)
+        .where(Prediction.reference_time == latest_ref)
+        .order_by(Prediction.target_time.asc())
+    )
+    preds = result.scalars().all()
+    if not preds:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible.")
+
+    surplus_values = np.array([p.surplus_kw for p in preds], dtype=float)
+    timestamps = [p.target_time for p in preds]
+
+    window_steps = max(1, min(int(np.ceil(duration_minutes / 15)), len(surplus_values)))
+    best_avg, best_start_idx = -np.inf, 0
+    for i in range(len(surplus_values) - window_steps + 1):
+        avg = float(surplus_values[i : i + window_steps].mean())
+        if avg > best_avg:
+            best_avg, best_start_idx = avg, i
+
+    if best_avg > 0.0:
+        return BestSlotResponse(
+            best_start=timestamps[best_start_idx],
+            best_end=timestamps[best_start_idx + window_steps - 1],
+            avg_surplus_kw=best_avg,
+            reason=f"Meilleure fenêtre sur {duration_minutes} min avec surplus moyen maximal.",
+        )
+    return BestSlotResponse(
+        best_start=timestamps[0],
+        best_end=timestamps[min(window_steps - 1, len(timestamps) - 1)],
+        avg_surplus_kw=0.0,
+        reason="Aucun surplus positif trouvé, retour de la première fenêtre disponible.",
+    )
 
 
 @app.get(

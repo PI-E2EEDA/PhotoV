@@ -6,21 +6,24 @@ import asyncio
 import io
 import logging
 import math
+from datetime import datetime, timezone, timedelta
 
 import aiohttp
 import pandas as pd
-import requests
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 from .config import (
     METEOSWISS_STAC_URL,
     METEOSWISS_POINT_ID,
     METEOSWISS_POINT_TYPE_ID,
     METEOSWISS_COLUMNS_MAPPING,
-    INTERNAL_WEATHER_COLUMNS
+    INTERNAL_WEATHER_COLUMNS,
+    LATITUDE,
+    LONGITUDE
 )
-from app.models import WeatherHistory
+from app.models import WeatherHistory, Installation, WeatherForecast
 
 LOGGER = logging.getLogger(__name__)
 
@@ -76,21 +79,25 @@ async def _fetch_single_param_csv(session: aiohttp.ClientSession, url: str, para
 
 async def _fetch_all_meteoswiss_data_async(point_id: str, point_type_id: int) -> pd.DataFrame:
     """Orchestre le téléchargement parallèle des 8 paramètres météo."""
-    # 1. Obtenir les URLs des fichiers depuis le STAC (Synchrone car très rapide)
     LOGGER.info(f"Appel du STAC URL : {METEOSWISS_STAC_URL}")
-    response = requests.get(METEOSWISS_STAC_URL, timeout=10)
-    response.raise_for_status()
-    latest_item = response.json()['features'][0]  # Le run le plus récent
-    assets = latest_item['assets']
 
-    tasks = []
-    # 2. Préparer les requêtes asynchrones pour les paramètres qu'on veut
     async with aiohttp.ClientSession() as session:
-        for param_id in METEOSWISS_COLUMNS_MAPPING.keys():
-            # Chercher l'asset qui correspond au paramètre
-            # Le nom de l'asset dans le STAC contient généralement l'ID du paramètre
-            asset_key = next((key for key in assets.keys() if param_id in key), None)
+        # 1. Obtenir les URLs des fichiers depuis le STAC (maintenant asynchrone)
+        try:
+            async with session.get(METEOSWISS_STAC_URL, timeout=10) as response:
+                response.raise_for_status()
+                stac_data = await response.json()
+        except Exception as e:
+            LOGGER.exception(f"Impossible de fetch le STAC URL: {e}")
+            raise ValueError("Erreur critique: STAC inaccessible.") from e
 
+        latest_item = stac_data['features'][0]
+        assets = latest_item['assets']
+
+        # 2. Préparer les requêtes asynchrones pour les paramètres
+        tasks = []
+        for param_id in METEOSWISS_COLUMNS_MAPPING.keys():
+            asset_key = next((key for key in assets.keys() if param_id in key), None)
             if asset_key:
                 csv_url = assets[asset_key]['href']
                 task = _fetch_single_param_csv(session, csv_url, param_id, point_id, point_type_id)
@@ -98,35 +105,46 @@ async def _fetch_all_meteoswiss_data_async(point_id: str, point_type_id: int) ->
             else:
                 LOGGER.warning(f"Paramètre {param_id} introuvable dans le run STAC actuel.")
 
-        # 3. Exécuter tout en parallèle !
+        # 3. Exécuter tout en parallèle
+        if not tasks:
+            raise ValueError("Aucun paramètre météo n'a pu être préparé pour le téléchargement.")
+        
         results_dfs = await asyncio.gather(*tasks)
 
     # 4. Fusionner tous les DataFrames sur le timestamp
-    if not results_dfs:
-        raise ValueError("Aucune donnée météo n'a pu être récupérée.")
+    valid_dfs = [df for df in results_dfs if not df.empty]
+    if not valid_dfs:
+        raise ValueError("Aucune donnée météo n'a pu être récupérée après téléchargement.")
 
-    # On initialise un DataFrame vide sur lequel faire les jointures
-    merged_df = results_dfs[0]
-    for df in results_dfs[1:]:
-        if not df.empty:
-            merged_df = pd.merge(merged_df, df, on='timestamp', how='outer')
+    merged_df = valid_dfs[0]
+    for df in valid_dfs[1:]:
+        merged_df = pd.merge(merged_df, df, on='timestamp', how='outer')
 
     # Formatage final du timestamp
     # MétéoSuisse OGD : YYYYMMDDHHMM en UTC
     merged_df['timestamp'] = pd.to_datetime(merged_df['timestamp'], format='%Y%m%d%H%M', utc=True)
     merged_df = merged_df.set_index('timestamp').sort_index()
 
+    # MeteoSwiss nprohihs/npromths/nprolohs sont en fraction 0–1 ; Open-Meteo est en % 0–100.
+    # Conversion pour cohérence train/inférence.
+    for col in ("cloudcover_high", "cloudcover_medium", "cloudcover_low"):
+        if col in merged_df.columns:
+            merged_df[col] = merged_df[col] * 100.0
+
     return merged_df
 
 
 def build_realtime_dataset() -> pd.DataFrame:
-    """Point d'entrée principal pour construire les prévisions à 15 min."""
-    # Lancer la boucle asynchrone (FastAPI gère ça bien, mais dans un thread séparé il faut créer la boucle)
+    """Point d'entre principal pour construire les prvisions  15 min."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+
+    if loop.is_running():
+        import nest_asyncio
+        nest_asyncio.apply()
 
     df_hourly = loop.run_until_complete(_fetch_all_meteoswiss_data_async(METEOSWISS_POINT_ID, METEOSWISS_POINT_TYPE_ID))
 
@@ -151,18 +169,12 @@ def build_realtime_dataset() -> pd.DataFrame:
     return df_15min
 
 def build_dataset(source: str = "realtime") -> pd.DataFrame:
-    """Wrapper de compatibilit pour inference.py"""
     if source == "realtime":
         return build_realtime_dataset()
-    elif source == "historical":
-        # Ton ancien code pour fetch_local_meter_data
-        pass
-    else:
-        raise ValueError(f"Source inconnue: {source}")
+    raise NotImplementedError(f"Source '{source}' non implémentée. Utilise build_forecast_dataset_from_db pour le DB.")
 
 async def fetch_and_store_weather(session: AsyncSession):
     """Fetches meteoswiss data and stores it in Postgres for the point ID (HISTORICAL data only, <= now)."""
-    from datetime import datetime, timezone
     LOGGER.info(f"Début fetch_and_store_weather (History) pour ID {METEOSWISS_POINT_ID} type {METEOSWISS_POINT_TYPE_ID}")
     df = await _fetch_all_meteoswiss_data_async(METEOSWISS_POINT_ID, METEOSWISS_POINT_TYPE_ID)
     if df.empty:
@@ -208,6 +220,96 @@ async def fetch_and_store_weather(session: AsyncSession):
         await session.execute(stmt)
         await session.commit()
         LOGGER.info(f"Fin fetch_and_store_weather (History): {len(records)} lignes traitées (historique uniquement).")
+
+async def fetch_and_store_weather_history_open_meteo(session: AsyncSession, days_back: int = 7):
+    """Fetches historical weather data from Open-Meteo and stores it in Postgres.
+    Used for training the model with real observations.
+    """
+    # Grab the first installation to get true coordinates, otherwise fallback to config
+    result = await session.execute(select(Installation).limit(1))
+    inst = result.scalars().first()
+    
+    lat = inst.latitude if inst else LATITUDE
+    lon = inst.longitude if inst else LONGITUDE
+
+    LOGGER.info(f"Début fetch_and_store_weather_history_open_meteo (Historique) pour lat={lat}, lon={lon} (derniers {days_back} jours)...")
+    
+    end_date = datetime.now(timezone.utc).date() - timedelta(days=1)
+    start_date = end_date - timedelta(days=days_back)
+    
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d"),
+        "hourly": "temperature_2m,shortwave_radiation,diffuse_radiation,precipitation,wind_speed_10m,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
+        "wind_speed_unit": "ms", # Important : match MétéoSuisse (m/s)
+        "timezone": "UTC"
+    }
+    
+    async with aiohttp.ClientSession() as client:
+        async with client.get(url, params=params) as resp:
+            if resp.status != 200:
+                LOGGER.error(f"Erreur API Open-Meteo: {resp.status} - {await resp.text()}")
+                return
+            data = await resp.json()
+            
+    if "hourly" not in data:
+        LOGGER.warning("Aucune donnée horaire renvoyée par Open-Meteo.")
+        return
+        
+    hourly = data["hourly"]
+    df = pd.DataFrame({
+        "timestamp": pd.to_datetime(hourly["time"], utc=True),
+        "temperature_2m": hourly["temperature_2m"],
+        "shortwave_radiation": hourly["shortwave_radiation"],
+        "diffuse_radiation": hourly["diffuse_radiation"],
+        "precipitation": hourly["precipitation"],
+        "windspeed_10m": hourly["wind_speed_10m"],
+        "cloudcover_low": hourly["cloud_cover_low"],
+        "cloudcover_medium": hourly["cloud_cover_mid"], # Rename mid -> medium
+        "cloudcover_high": hourly["cloud_cover_high"],
+    })
+    
+    # 1. Rééchantillonner à 15 minutes (interpolation)
+    df = df.set_index("timestamp").sort_index()
+    df_15min = df.resample('15min').asfreq()
+    
+    cols_to_interpolate = [c for c in df_15min.columns if 'radiation' not in c]
+    df_15min[cols_to_interpolate] = df_15min[cols_to_interpolate].interpolate(method='time')
+    
+    rad_cols = [c for c in df_15min.columns if 'radiation' in c]
+    df_15min[rad_cols] = df_15min[rad_cols].interpolate(method='time').clip(lower=0.0)
+    
+    df_15min = df_15min.dropna().reset_index()
+    records = []
+    
+    for _, row in df_15min.iterrows():
+        ts = row["timestamp"].to_pydatetime()
+        record = {
+            "time": ts,
+            "point_id": METEOSWISS_POINT_ID,
+            "temperature_2m": row.get("temperature_2m", 0.0),
+            "shortwave_radiation": row.get("shortwave_radiation", 0.0),
+            "diffuse_radiation": row.get("diffuse_radiation", 0.0),
+            "precipitation": row.get("precipitation", 0.0),
+            "windspeed_10m": row.get("windspeed_10m", 0.0),
+            "cloudcover_high": row.get("cloudcover_high", 0.0),
+            "cloudcover_medium": row.get("cloudcover_medium", 0.0),
+            "cloudcover_low": row.get("cloudcover_low", 0.0),
+        }
+        for k, v in record.items():
+            if isinstance(v, float) and math.isnan(v):
+                record[k] = 0.0
+        records.append(record)
+
+    if records:
+        stmt = insert(WeatherHistory).values(records)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["time", "point_id"])
+        await session.execute(stmt)
+        await session.commit()
+        LOGGER.info(f"Open-Meteo: {len(records)} observations insérées dans WeatherHistory.")
 
 async def fetch_and_store_weather_forecast(session: AsyncSession):
     """Fetches meteoswiss data and stores it in Postgres as WeatherForecast for all installations (FUTURE data only, > now)."""
@@ -274,3 +376,96 @@ async def fetch_and_store_weather_forecast(session: AsyncSession):
         await session.execute(stmt)
         await session.commit()
         LOGGER.info(f"Fin fetch_and_store_weather_forecast: {len(records)} prévisions insérées pour {len(installations)} installation(s) (futur uniquement).")
+
+
+async def ensure_weather_history_recent(session: AsyncSession, max_days_back: int = 60) -> None:
+    """Backfill weather history from Open-Meteo if DB is empty or has a gap.
+
+    Computes the gap between the last stored entry and yesterday, then fetches only
+    what is missing (capped at max_days_back). Safe to call at every startup.
+    """
+    result = await session.execute(
+        select(func.max(WeatherHistory.time)).where(
+            WeatherHistory.point_id == METEOSWISS_POINT_ID
+        )
+    )
+    last_time = result.scalar()
+
+    now_utc = datetime.now(timezone.utc)
+
+    if last_time is None:
+        days_back = max_days_back
+        LOGGER.info("No weather history in DB, backfilling %d days from Open-Meteo.", days_back)
+    else:
+        if last_time.tzinfo is None:
+            last_time = last_time.replace(tzinfo=timezone.utc)
+        gap_days = (now_utc - last_time).days
+        if gap_days < 1:
+            LOGGER.info("Weather history up to date (last entry: %s), skipping backfill.", last_time.date())
+            return
+        # Fetch the gap + 1 extra day as buffer, capped at max_days_back
+        days_back = min(gap_days + 1, max_days_back)
+        LOGGER.info("Weather history gap of %d days, backfilling %d days.", gap_days, days_back)
+
+    await fetch_and_store_weather_history_open_meteo(session, days_back=days_back)
+
+
+async def build_realtime_dataset_async() -> pd.DataFrame:
+    """Version async de build_realtime_dataset — pas de nest_asyncio requis."""
+    df_hourly = await _fetch_all_meteoswiss_data_async(
+        METEOSWISS_POINT_ID, METEOSWISS_POINT_TYPE_ID
+    )
+    df_15min = df_hourly.resample("15min").asfreq()
+    cols_to_interpolate = [c for c in df_15min.columns if "radiation" not in c]
+    df_15min[cols_to_interpolate] = df_15min[cols_to_interpolate].interpolate(method="time")
+    rad_cols = [c for c in df_15min.columns if "radiation" in c]
+    df_15min[rad_cols] = df_15min[rad_cols].interpolate(method="time").clip(lower=0.0)
+    now = pd.Timestamp.now(tz="UTC").floor("15min")
+    return df_15min[df_15min.index >= now].copy()
+
+
+async def build_forecast_dataset_from_db(session: AsyncSession, installation_id: int) -> pd.DataFrame:
+    """Lit les dernières prévisions météo depuis WeatherForecast en DB.
+
+    Retourne un DataFrame 15-min UTC indexé avec les colonnes INTERNAL_WEATHER_COLUMNS,
+    filtré sur l'heure courante et au-delà. Retourne un DataFrame vide si aucune donnée.
+    """
+    result = await session.execute(
+        select(func.max(WeatherForecast.reference_time)).where(
+            WeatherForecast.installation_id == installation_id
+        )
+    )
+    latest_ref = result.scalar()
+    if latest_ref is None:
+        return pd.DataFrame()
+
+    result = await session.execute(
+        select(WeatherForecast)
+        .where(WeatherForecast.installation_id == installation_id)
+        .where(WeatherForecast.reference_time == latest_ref)
+        .order_by(WeatherForecast.target_time.asc())
+    )
+    forecasts = result.scalars().all()
+    if not forecasts:
+        return pd.DataFrame()
+
+    rows = [
+        {
+            "time": f.target_time,
+            "temperature_2m": f.temperature_2m or 0.0,
+            "shortwave_radiation": f.shortwave_radiation or 0.0,
+            "diffuse_radiation": f.diffuse_radiation or 0.0,
+            "precipitation": f.precipitation or 0.0,
+            "windspeed_10m": f.windspeed_10m or 0.0,
+            "cloudcover_high": f.cloudcover_high or 0.0,
+            "cloudcover_medium": f.cloudcover_medium or 0.0,
+            "cloudcover_low": f.cloudcover_low or 0.0,
+        }
+        for f in forecasts
+    ]
+    df = pd.DataFrame(rows)
+    df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.set_index("time").sort_index()
+
+    now = pd.Timestamp.now(tz="UTC").floor("15min")
+    return df[df.index >= now].copy()

@@ -59,15 +59,15 @@ def _prepare_training_data(df: pd.DataFrame, target_col: str) -> tuple[pd.Series
 
 def create_forecasters() -> dict[str, Any]:
     """Create independent autoregressive forecasters for both targets."""
-    # Les lags sont réduits ici car on utilise les lags de build_features en exogène
-    base_lags = [1, 4]
+    # lag 96 = même créneau 15min la veille : signal AR le plus fort pour le solaire
+    base_lags = [1, 4, 96]
 
     forecasters = {
         "production": ForecasterAutoreg(
-            regressor=LGBMRegressor(**DEFAULT_LGBM_PARAMS), lags=base_lags,
+            estimator=LGBMRegressor(**DEFAULT_LGBM_PARAMS), lags=base_lags,
         ),
         "consumption": ForecasterAutoreg(
-            regressor=LGBMRegressor(**DEFAULT_LGBM_PARAMS), lags=base_lags,
+            estimator=LGBMRegressor(**DEFAULT_LGBM_PARAMS), lags=base_lags,
         ),
     }
     return forecasters
@@ -188,4 +188,5 @@ def run_training_pipeline(
 
 
 if __name__ == "__main__":
+    pass
 

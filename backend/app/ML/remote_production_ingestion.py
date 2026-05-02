@@ -11,12 +11,14 @@ import logging
 from typing import Any
 
 import httpx
+from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Measure, MeasureType
 
 from .config import (
+    LOCAL_TIMEZONE,
     REMOTE_AUTH_SCHEME,
     REMOTE_BASE_URL,
     REMOTE_ENABLED,
@@ -57,21 +59,31 @@ def _set_health(status: str, inserted_or_updated: int = 0, error: str | None = N
     )
 
 
-def _parse_timestamp_utc(raw: Any) -> datetime:
+def _parse_timestamp_local(raw: Any) -> datetime:
+    """Parse a remote timestamp and return a naive datetime in the local installation timezone.
+
+    The remote PhotoV API returns SolarEdge measures whose .time is naive local time.
+    If the remote sends a tz-aware value (e.g. Z suffix), convert it to local timezone
+    first so that it is consistent with how measures are stored in Measure.time.
+    """
+    from zoneinfo import ZoneInfo
+    local_tz = ZoneInfo(LOCAL_TIMEZONE)
+
     if isinstance(raw, datetime):
         dt = raw
     elif isinstance(raw, str):
-        clean = raw.strip().replace("Z", "+00:00")
+        clean = raw.strip()
+        if clean.endswith("Z"):
+            clean = clean[:-1] + "+00:00"
         dt = datetime.fromisoformat(clean)
     else:
         raise ValueError(f"Unsupported timestamp format: {type(raw)}")
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    else:
-        dt = dt.astimezone(timezone.utc)
-
-    return dt
+        # Naive → assume already local time, keep as-is
+        return dt
+    # Tz-aware → convert to local timezone, then strip tz
+    return dt.astimezone(local_tz).replace(tzinfo=None)
 
 
 def _iter_records(payload: Any) -> list[dict[str, Any]]:
@@ -132,7 +144,7 @@ async def _resolve_auth_header(client: httpx.AsyncClient, base: str) -> dict[str
 def _extract_timestamp(row: dict[str, Any]) -> datetime:
     for key in ("timestamp_utc", "timestamp", "time", "datetime"):
         if key in row and row[key] is not None:
-            return _parse_timestamp_utc(row[key])
+            return _parse_timestamp_local(row[key])
     raise ValueError("Missing timestamp field in remote record")
 
 
@@ -290,4 +302,42 @@ async def backfill_remote_production_into_db(
     _set_health(status="ok", inserted_or_updated=inserted_total, error=None)
     LOGGER.info("Remote production backfill finished: %s rows upserted.", inserted_total)
     return inserted_total
+
+
+async def ensure_production_history_recent(session: AsyncSession, max_days_back: int = 60) -> int:
+    """Backfill production measures if the last entry is older than 1 day or missing.
+
+    Checks the most recent Measure.time for the configured installation, then fetches
+    only the missing rows (up to max_days_back × 96 rows at 15-min resolution).
+    """
+    if not REMOTE_ENABLED:
+        LOGGER.info("Remote ingestion disabled, skipping production backfill.")
+        return 0
+
+    from sqlalchemy import func
+    from app.models import MeasureType
+
+    result = await session.execute(
+        select(func.max(Measure.time)).where(
+            Measure.installation_id == REMOTE_INSTALLATION_ID,
+            Measure.type == MeasureType.power,
+        )
+    )
+    last_time = result.scalar()
+
+    now_naive = datetime.now().replace(second=0, microsecond=0)
+
+    if last_time is None:
+        days_back = max_days_back
+        LOGGER.info("No production measures in DB, backfilling %d days.", days_back)
+    else:
+        gap_days = (now_naive - last_time).days
+        if gap_days < 1:
+            LOGGER.info("Production measures are up to date (last: %s).", last_time)
+            return 0
+        days_back = min(gap_days + 1, max_days_back)
+        LOGGER.info("Production gap of %d days, backfilling %d days.", gap_days, days_back)
+
+    total_rows = days_back * 96  # 96 quarter-hours per day
+    return await backfill_remote_production_into_db(session, total_rows=total_rows)
 

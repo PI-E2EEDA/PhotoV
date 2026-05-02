@@ -56,6 +56,9 @@ METEOSWISS_POINT_TYPE_ID: int = int(os.environ.get("PV_METEOSWISS_POINT_TYPE_ID"
 MODELS_DIR: str = os.environ.get("PV_MODELS_DIR", "app/artifacts")
 HORIZON: int = int(os.environ.get("PV_HORIZON", "288")) # 3 days in 15-minute steps
 
+# --- Timezone of the installation (naive datetimes in Measure.time are in this tz) ---
+LOCAL_TIMEZONE: str = os.environ.get("PV_LOCAL_TIMEZONE", "Europe/Zurich")
+
 # --- Remote production ingestion (friend server -> local DB) ---
 REMOTE_ENABLED: bool = os.environ.get("PV_REMOTE_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 REMOTE_BASE_URL: str = os.environ.get("PV_REMOTE_BASE_URL", "")
