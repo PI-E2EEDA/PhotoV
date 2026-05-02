@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Home 1",
+    "installation_id": 1,
+    "solaredge_site_id": 234,
+    "smartplugs": [
+      {
+        "id": 9,
+        "name": "lave-linge"
+      },
+      {
+        "id": 2,
+        "name": "four"
+      }
+    ],
+    "photov_api_token": "todo",
+    "cookies": "se_monitoring_auth=..."
+  }
+]
