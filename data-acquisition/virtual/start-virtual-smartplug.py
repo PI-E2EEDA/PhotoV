@@ -1,4 +1,5 @@
 from time import sleep
+import httpcore
 import questionary
 import httpx
 import json
@@ -57,7 +58,9 @@ def get_powerflow_measure_from_solaredge(log_result, inst_config):
     return None
 
 
-def save_smartplug_measure_on_photov(inst_config, smartplug_id: int, value: float):
+def save_smartplug_measure_on_photov(
+    inst_config, smartplug_id: int, value: float, recursive_level=0
+):
     installation_id = inst_config["installation_id"]
     api_token = inst_config["photov_api_token"]
 
@@ -80,7 +83,17 @@ def save_smartplug_measure_on_photov(inst_config, smartplug_id: int, value: floa
                 print(
                     f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
                 )
-
+        except httpcore.ConnectTimeout:
+            print("Request to PhotoV timeout, retrying in 2 seconds...")
+            if recursive_level >= 3:
+                return  # do not try more, we give up saving this value
+            sleep(2)
+            save_smartplug_measure_on_photov(
+                inst_config=inst_config,
+                smartplug_id=smartplug_id,
+                value=value,
+                recursive_level=recursive_level + 1,
+            )
         except httpx.ConnectError:
             print(f"Could not reach API at {PHOTOV_API_BASE_URL}...")
 
