@@ -15,3 +15,4 @@ pull.config.json
 
 cookies.txt
 backend/pull.logs.txt
+data-acquisition/service/config.yaml

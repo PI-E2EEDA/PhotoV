@@ -95,6 +95,12 @@ Install the correct python version and the packages for the data acquisition ser
 uv sync
 ```
 
+Configure the service
+```sh
+cp service/config.yaml.example service/config.yaml
+vim service/config.yaml
+```
+
 Run the service manually from the `data-acquisition` folder :
 
 ```bash
@@ -102,6 +108,12 @@ uv run service/acquire.py
 ```
 
 ## Install/restart the acquistion service as a systemd service
+
+Configure the service
+```sh
+cp service/config.yaml.example service/config.yaml
+vim service/config.yaml
+```
 
 From the `data-acquisition` folder copy the service file to the `systemd` folder :
 ```bash
