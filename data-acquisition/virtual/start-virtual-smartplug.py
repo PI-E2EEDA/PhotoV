@@ -1,3 +1,4 @@
+from time import sleep
 import questionary
 import httpx
 import json
@@ -42,42 +43,45 @@ def get_powerflow_measure_from_solaredge(inst_config):
         response = client.get(url, headers=headers, params=params, cookies=cookies)
         if not response.is_error:
             data = response.json()
-            current_power = data["consumption"]["currentPower"]
-            print(f"Current power is {current_power}")
+            # WARNING: the value is in in kW, we need to convert it !
+            current_power_kw = float(data["consumption"]["currentPower"])
+            current_power_w = 1000 * current_power_kw
+            print(f"Current power is {current_power_w}W: ", end="", flush=True)
+            return current_power_w
         else:
             print(f"Request failed with code {response.status_code}")
+    return None
 
 
-def save_smartplug_measure_on_photov(
-    inst_config, client: httpx.Client, smartplug_id: int, value: float
-):
-    base_url = PHOTOV_API_BASE_URL
+def save_smartplug_measure_on_photov(inst_config, smartplug_id: int, value: float):
     installation_id = inst_config["installation_id"]
     api_token = inst_config["photov_api_token"]
-    try:
-        response = client.post(
-            f"{base_url}/{API_ROUTE_SEND_MEASURE}/{installation_id}/",
-            json={
-                "smartplug_id": smartplug_id,
-                "time": datetime.now().isoformat(),
-                "value": value,
-            },
-            headers={
-                "Authorization": f"Bearer {api_token}",
-            },
-        )
-        if response.status_code == 200:
-            print(f"Smartplug {smartplug_id}: power sent")
-        else:
-            print(
-                f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
+
+    with httpx.Client() as client:
+        try:
+            response = client.post(
+                f"{PHOTOV_API_BASE_URL}/{API_ROUTE_SEND_MEASURE}/{installation_id}/",
+                json={
+                    "smartplug_id": smartplug_id,
+                    "time": datetime.now().isoformat(),
+                    "value": value,
+                },
+                headers={
+                    "Authorization": f"Bearer {api_token}",
+                },
             )
+            if response.status_code == 200:
+                print(f"sent on smartplug {smartplug_id}")
+            else:
+                print(
+                    f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
+                )
 
-    except httpx.ConnectError:
-        print(f"Could not reach API at {base_url}, will retry next cycle")
+        except httpx.ConnectError:
+            print(f"Could not reach API at {PHOTOV_API_BASE_URL}...")
 
 
-def interactive_config():
+def interactive_start():
     print("Welcome to the interactive start of a virtual smartplug !")
     virtual_config = get_virtual_config()
     names = [installation["name"] for installation in virtual_config]
@@ -93,14 +97,17 @@ def interactive_config():
         choices=smartplug_names,
     ).ask()
 
-    smartplug_id = smartplug_names.index(smartplug_name)
-    return (inst_config, smartplug_id)
+    chosen_smartplug = inst_config["smartplugs"][smartplug_names.index(smartplug_name)]
+    return (inst_config, chosen_smartplug["id"])
 
 
 def main():
-    inst_config, smartplug_id = interactive_config()
-    get_powerflow_measure_from_solaredge(inst_config)
-    save_smartplug_measure_on_photov(value, smartplug_id)
+    inst_config, smartplug_id = interactive_start()
+    while True:
+        value = get_powerflow_measure_from_solaredge(inst_config)
+        if value is not None:
+            save_smartplug_measure_on_photov(inst_config, smartplug_id, value)
+        sleep(10)
 
 
 main()
