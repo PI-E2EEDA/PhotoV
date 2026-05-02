@@ -221,8 +221,11 @@ async def _build_training_dataframe(
         print("Attention: aucune meteo historique sur cette periode, fallback meteo=0 active")
 
     dataset = m_df.join(weather_15, how="left")
-    # On supprime les NaNs plutôt que de mettre à 0, pour garantir l'intégrité de l'entraînement
-    dataset = dataset.sort_index().dropna()
+    dataset = dataset.sort_index()
+    # Resample to strict 15-min frequency: skforecast requires a regular DatetimeIndex.
+    # Gaps <= 1h (4 steps) are interpolated; longer gaps are dropped.
+    dataset = dataset.resample("15min").asfreq()
+    dataset = dataset.interpolate(method="time", limit=4).ffill().bfill().dropna()
     return dataset
 
 
