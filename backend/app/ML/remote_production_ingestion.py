@@ -324,6 +324,8 @@ async def ensure_production_history_recent(session: AsyncSession, max_days_back:
         )
     )
     last_time = result.scalar()
+    if last_time is not None and last_time.tzinfo is not None:
+        last_time = last_time.replace(tzinfo=None)
 
     now_naive = datetime.now().replace(second=0, microsecond=0)
 
