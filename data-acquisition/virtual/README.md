@@ -16,8 +16,12 @@ uv run -m virtual.start-virtual-smartplug
 It starts with an interactive setup to configure
 ```sh
 Welcome to the interactive start of a virtual smartplug !
-? Choose one of the installations configured in virtual.json: Home 1
-? Choose the virtual smartplug to start now: lave-linge
+? Choose one of the installations configured in virtual.json
+ »  Home 1
+? Choose the virtual smartplug to start now (Use arrow keys)
+ » lave-linge-40
+   four
+   lave-linge-60
 Measuring current power flow to determine the baseline power to substract to measures
 If the physical device has already started, you may need to manually take the power flow value before its activation.
 ? Do you want to take this baseline of 130.0W ? Yes
