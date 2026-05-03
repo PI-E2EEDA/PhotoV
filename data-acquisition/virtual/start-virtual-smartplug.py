@@ -54,7 +54,7 @@ def get_powerflow_measure_from_solaredge(log_result, inst_config):
                 print(f"{formatted}: Power is {current_power_w}W, ", end="", flush=True)
             return current_power_w
         else:
-            log_result(f"Request failed with code {response.status_code}")
+            print(f"Request failed with code {response.status_code}")
     return None
 
 
