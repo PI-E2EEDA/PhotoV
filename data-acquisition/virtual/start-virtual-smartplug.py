@@ -82,7 +82,7 @@ def save_smartplug_measure_on_photov(
                 print(f"sent adapted measure {value}W for smartplug {smartplug_id}")
             else:
                 print(
-                    f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
+                    f"couldn't send value because of API error {response.status_code} : {response.text}"
                 )
             return False
         except httpx.TimeoutException, httpx.ConnectError:
