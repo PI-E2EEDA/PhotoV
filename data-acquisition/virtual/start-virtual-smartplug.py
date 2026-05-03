@@ -1,5 +1,4 @@
 from time import sleep
-import httpcore
 import questionary
 import httpx
 import json
@@ -58,9 +57,10 @@ def get_powerflow_measure_from_solaredge(log_result, inst_config):
     return None
 
 
+# The command must indicate whether more time was sleept here. This helps to choose if we need to skip the sleep SAVE_INTERVAL_S.
 def save_smartplug_measure_on_photov(
     inst_config, smartplug_id: int, value: float, recursive_level=0
-):
+) -> bool:
     installation_id = inst_config["installation_id"]
     api_token = inst_config["photov_api_token"]
 
@@ -84,12 +84,13 @@ def save_smartplug_measure_on_photov(
                 print(
                     f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
                 )
-        except httpx.TimeoutException:
+            return False
+        except httpx.TimeoutException, httpx.ConnectError:
             if recursive_level >= 3:
                 print(
                     "Request to PhotoV has timeout 3 times ! The value is lost to continue script execution."
                 )
-                return
+                return True
             print("Request to PhotoV has timeout, retrying in 2 seconds...")
             sleep(2)
             save_smartplug_measure_on_photov(
@@ -98,8 +99,7 @@ def save_smartplug_measure_on_photov(
                 value=value,
                 recursive_level=recursive_level + 1,
             )
-        except httpx.ConnectError:
-            print(f"Could not reach API at {PHOTOV_API_BASE_URL}...")
+            return True
 
 
 def interactive_start():
@@ -147,13 +147,18 @@ def main():
 
     while True:
         value = get_powerflow_measure_from_solaredge(True, inst_config)
+        skip_wait = False
         if value is not None:
+            skip_wait = False
             value = value - baseline_value
             # We need to make sure we don't go into the negative if the real baseline is going lower what we chose
             if value < 0:
                 value = 0
-            save_smartplug_measure_on_photov(inst_config, smartplug_id, value)
-        sleep(SAVE_INTERVAL_S)
+            skip_wait = save_smartplug_measure_on_photov(
+                inst_config, smartplug_id, value
+            )
+        if not skip_wait:
+            sleep(SAVE_INTERVAL_S)
 
 
 main()
