@@ -26,15 +26,18 @@ Welcome to the interactive start of a virtual smartplug !
 ? Choose one of the installations configured in virtual.json
  »  Home 1
 ? Choose the virtual smartplug to start now (Use arrow keys)
- » lave-linge-40
+   lave-linge-40
    four
-   lave-linge-60
+ » lave-linge-60
 Measuring current power flow to determine the baseline power to substract to measures
 If the physical device has already started, you may need to manually take the power flow value before its activation.
 ? Do you want to take this baseline of 130.0W ? Yes
-2026-05-02 15:14:06: Power is 110.0W, sent adapted measure 0W for smartplug 5
-2026-05-02 15:14:17: Power is 110.0W, sent adapted measure 0W for smartplug 5
+2026-05-03 17:04:21: Power is 120.0W, sent adapted measure 0.0W for smartplug 8
+2026-05-03 17:04:31: Power is 120.0W, sent adapted measure 0.0W for smartplug 8
 ...
-2026-05-02 15:15:27: Power is 2110.0W, sent adapted measure 2000W for smartplug 5
+2026-05-01 17:08:06: Power is 460.0W, sent adapted measure 340.0W for smartplug 8
+2026-05-01 17:08:16: Power is 460.0W, sent adapted measure 340.0W for smartplug 8
+2026-05-01 17:08:26: Power is 460.0W, sent adapted measure 340.0W for smartplug 8
+2026-05-01 17:08:37: Power is 450.0W, sent adapted measure 330.0W for smartplug 8
 ...
 ```
