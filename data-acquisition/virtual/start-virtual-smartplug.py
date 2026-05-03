@@ -68,6 +68,7 @@ def save_smartplug_measure_on_photov(
         try:
             response = client.post(
                 f"{PHOTOV_API_BASE_URL}/{API_ROUTE_SEND_MEASURE}/{installation_id}/",
+                timeout=10,  # the default timeout is 5s and this might be the cause of crash...
                 json={
                     "smartplug_id": smartplug_id,
                     "time": datetime.now().isoformat(),
@@ -83,10 +84,13 @@ def save_smartplug_measure_on_photov(
                 print(
                     f"Smartplug {smartplug_id}: API error {response.status_code} : {response.text}"
                 )
-        except httpcore.ConnectTimeout:
-            print("Request to PhotoV timeout, retrying in 2 seconds...")
+        except httpx.TimeoutException:
             if recursive_level >= 3:
-                return  # do not try more, we give up saving this value
+                print(
+                    "Request to PhotoV has timeout 3 times ! The value is lost to continue script execution."
+                )
+                return
+            print("Request to PhotoV has timeout, retrying in 2 seconds...")
             sleep(2)
             save_smartplug_measure_on_photov(
                 inst_config=inst_config,
