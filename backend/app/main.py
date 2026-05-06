@@ -1,8 +1,9 @@
 from typing import Annotated
-import asyncio
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
+import logging
+import numpy as np
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import text, func as sqlfunc
 from sqlmodel import asc, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,38 +11,36 @@ import os
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from contextlib import asynccontextmanager
 from app.auth import setup_auth_routes
 from app.db import get_session
+from app.ML.scheduler import start_scheduler, stop_scheduler, get_scheduler_health
+from app.ML.remote_production_ingestion import get_remote_ingestion_health
 from app.models import (
     Installation,
     Measure,
     MeasureType,
+    Prediction,
     User,
     UserInstallationLink,
     SmartPlugMeasure,
     SmartPlug,
+    WeatherHistory,
 )
-from app.tasks.pull import start_background_pulling_at_regular_time, log
+from app.schemas.ml_health import MLIngestionHealthResponse
+from app.schemas.prediction import BestSlotResponse, PredictionPoint, PredictionResponse
+
+LOGGER = logging.getLogger(__name__)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
-
-def handle_task_result(task: asyncio.Task):
-    exc = task.exception()
-    if exc:
-        log(f"Exception in background task {exc}")
-
-
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    print("Starting background task for pulling !")
-    log("Log: Starting background task for pulling !")
-    task = asyncio.create_task(start_background_pulling_at_regular_time())
-    task.add_done_callback(handle_task_result)
-    print("Background task started !")
+async def lifespan(app: FastAPI):
+    LOGGER.info("Démarrage du Scheduler ML...")
+    start_scheduler()
     yield
-    task.cancel()
-
+    LOGGER.info("Arrêt du Scheduler ML...")
+    stop_scheduler()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -221,6 +220,151 @@ async def get_smartplug_measures(
         .order_by(asc(SmartPlugMeasure.time))
     )
     results = await session.execute(stmt)  # ignore this warning
+    return results.scalars().all()
+
+
+@app.get(
+    "/ml/ingestion/health",
+    response_model=MLIngestionHealthResponse,
+    tags=["ml"],
+    description="Diagnostic scheduler + DB sans shell",
+)
+async def get_ml_ingestion_health(session: SessionDep, user: User = Depends(current_user_fn)):
+
+    db_status = "ok"
+    db_error = None
+    try:
+        await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        db_status = "error"
+        db_error = str(exc)
+
+    scheduler_health = get_scheduler_health()
+    remote_ingestion_health = get_remote_ingestion_health()
+
+    # Normalize scheduler_health and remote_ingestion_health into simple dicts
+    def _to_dict(obj):
+        if obj is None:
+            return {}
+        if isinstance(obj, dict):
+            return obj
+        try:
+            return dict(obj)
+        except Exception:
+            try:
+                return obj.__dict__
+            except Exception:
+                return {}
+
+    s = _to_dict(scheduler_health)
+    r = _to_dict(remote_ingestion_health)
+
+    scheduler_obj = {
+        "running": bool(s.get("running") or s.get("is_running") or False),
+        "last_run_iso": s.get("last_run") or s.get("last_run_iso"),
+        "next_run_iso": s.get("next_run") or s.get("next_run_iso"),
+    }
+
+    remote_obj = {
+        "enabled": bool(r.get("enabled") or r.get("is_enabled") or False),
+        "last_sync_iso": r.get("last_sync") or r.get("last_sync_iso"),
+        "last_error": r.get("last_error") or r.get("error"),
+    }
+
+    return MLIngestionHealthResponse(
+        status=("ok" if db_status == "ok" else "degraded"),
+        checked_at=datetime.now(timezone.utc),
+        database={"status": db_status, "error": db_error},
+        scheduler=scheduler_obj,
+        remote_ingestion=remote_obj,
+    )
+
+
+@app.get("/ml/predictions/{installation_id}", response_model=PredictionResponse, tags=["ml"], description="Get latest predictions from DB")
+async def api_get_predictions(session: SessionDep, installation_id: int, user: User = Depends(current_user_fn)):
+    await validate_current_user_can_access_installation(user.id, installation_id, session)
+    result = await session.execute(
+        select(sqlfunc.max(Prediction.reference_time)).where(Prediction.installation_id == installation_id)
+    )
+    latest_ref = result.scalar()
+    if latest_ref is None:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible. Le scheduler n'a pas encore tourné.")
+
+    result = await session.execute(
+        select(Prediction)
+        .where(Prediction.installation_id == installation_id)
+        .where(Prediction.reference_time == latest_ref)
+        .order_by(Prediction.target_time.asc())
+    )
+    preds = result.scalars().all()
+    points = [
+        PredictionPoint(
+            timestamp=p.target_time,
+            production_kw=p.production_kw,
+            consumption_kw=p.consumption_kw,
+            surplus_kw=p.surplus_kw,
+        )
+        for p in preds
+    ]
+    return PredictionResponse(generated_at=latest_ref, horizon_steps=len(points), predictions=points)
+
+
+@app.get("/ml/best-slot/{installation_id}", response_model=BestSlotResponse, tags=["ml"], description="Get best time slot based on latest predictions")
+async def api_get_best_slot(session: SessionDep, installation_id: int, duration_minutes: int = 60, user: User = Depends(current_user_fn)):
+    await validate_current_user_can_access_installation(user.id, installation_id, session)
+    result = await session.execute(
+        select(sqlfunc.max(Prediction.reference_time)).where(Prediction.installation_id == installation_id)
+    )
+    latest_ref = result.scalar()
+    if latest_ref is None:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible.")
+
+    result = await session.execute(
+        select(Prediction)
+        .where(Prediction.installation_id == installation_id)
+        .where(Prediction.reference_time == latest_ref)
+        .order_by(Prediction.target_time.asc())
+    )
+    preds = result.scalars().all()
+    if not preds:
+        raise HTTPException(status_code=503, detail="Aucune prédiction disponible.")
+
+    surplus_values = np.array([p.surplus_kw for p in preds], dtype=float)
+    timestamps = [p.target_time for p in preds]
+
+    window_steps = max(1, min(int(np.ceil(duration_minutes / 15)), len(surplus_values)))
+    best_avg, best_start_idx = -np.inf, 0
+    for i in range(len(surplus_values) - window_steps + 1):
+        avg = float(surplus_values[i : i + window_steps].mean())
+        if avg > best_avg:
+            best_avg, best_start_idx = avg, i
+
+    if best_avg > 0.0:
+        return BestSlotResponse(
+            best_start=timestamps[best_start_idx],
+            best_end=timestamps[best_start_idx + window_steps - 1],
+            avg_surplus_kw=best_avg,
+            reason=f"Meilleure fenêtre sur {duration_minutes} min avec surplus moyen maximal.",
+        )
+    return BestSlotResponse(
+        best_start=timestamps[0],
+        best_end=timestamps[min(window_steps - 1, len(timestamps) - 1)],
+        avg_surplus_kw=0.0,
+        reason="Aucun surplus positif trouvé, retour de la première fenêtre disponible.",
+    )
+
+
+@app.get(
+    "/weather/history/{point_id}",
+    description="Get weather history for point",
+    response_model=list[WeatherHistory],
+    tags=["weather"],
+)
+async def get_weather_history(point_id: str, session: SessionDep, limit: int = 1000, offset: int = 0, ascending: bool = False, user: User = Depends(current_user_fn)):
+    stmt = select(WeatherHistory).where(WeatherHistory.point_id == point_id).order_by(asc(WeatherHistory.time) if ascending else desc(WeatherHistory.time)).offset(offset)
+    if limit > 0:
+        stmt = stmt.limit(limit)
+    results = await session.execute(stmt)
     return results.scalars().all()
 
 

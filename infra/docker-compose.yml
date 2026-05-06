@@ -39,6 +39,17 @@ services:
       POSTGRES_USER: photov
       POSTGRES_DB: photov
       DB_HOST: db # the other database service hostname
+      PV_REMOTE_ENABLED: "${PV_REMOTE_ENABLED}"
+      PV_REMOTE_BASE_URL: "${PV_REMOTE_BASE_URL}"
+      PV_REMOTE_TOKEN: "${PV_REMOTE_TOKEN:-}"
+      PV_REMOTE_AUTH_SCHEME: "${PV_REMOTE_AUTH_SCHEME}"
+      PV_REMOTE_LOGIN_PATH: "${PV_REMOTE_LOGIN_PATH:-/auth/login}"
+      PV_REMOTE_USERNAME: "${PV_REMOTE_USERNAME:-}"
+      PV_REMOTE_PASSWORD: "${PV_REMOTE_PASSWORD:-}"
+      PV_REMOTE_MEASURES_PATH: "${PV_REMOTE_MEASURES_PATH}"
+      PV_REMOTE_TIMEOUT_S: "${PV_REMOTE_TIMEOUT_S}"
+      PV_REMOTE_WINDOW_MINUTES: "${PV_REMOTE_WINDOW_MINUTES}"
+      PV_REMOTE_INSTALLATION_ID: "${PV_REMOTE_INSTALLATION_ID}"
 
   # See docs on https://hub.docker.com/_/postgres
   db:
@@ -51,9 +62,21 @@ services:
       POSTGRES_DB: photov
     volumes:
       - ./data/pgdata:/var/lib/postgresql/18/docker
-    # Only enable this in development !
-    # ports:
-    #   - "5432:5432"
+
+  dbdev:
+    image: postgres
+    profiles:
+      - dev
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: "${DB_PWD}"
+      POSTGRES_USER: photov
+      POSTGRES_DB: photov
+    volumes:
+      - ./data/devpgdata:/var/lib/postgresql/18/docker
+    ports:
+      - "5432:5432"
 
   # A simple container that does regular backups and allow restoration.
   # See backups/README.md

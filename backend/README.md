@@ -245,3 +245,27 @@ MAX grid_consumption: 4919.2925
 
 TODO
 The web server will then automatically start every hours pulling the latest hour of measures (4 measures).
+
+## First ML training from DB
+
+The backend now includes a step-by-step trainer that can backfill remote power rows,
+build a 15-minute dataset from local `measure` + `weatherhistory`, then train both
+forecasters.
+
+Run it inside the API container:
+
+```sh
+docker compose exec api sh
+uv run -m app.ML.train_from_db --installation-id 1 --backfill-rows 1200
+```
+
+Optional (slower): add Optuna hyperparameter search.
+
+```sh
+uv run -m app.ML.train_from_db --installation-id 1 --backfill-rows 1200 --optimize --optuna-trials 20
+```
+
+Generated models are saved in `app/artifacts/` as:
+- `production_forecaster.joblib`
+- `consumption_forecaster.joblib`
+
